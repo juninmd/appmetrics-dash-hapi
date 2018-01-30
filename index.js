@@ -1,5 +1,3 @@
-function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { step("next", value); }, function (err) { step("throw", err); }); } } return step("next"); }); }; }
-
 const debug = require('debug')('appmetrics-dash');
 const util = require('util');
 const Inert = require('inert');
@@ -36,304 +34,304 @@ var save = {
 
 let profiling_enabled = false;
 
-module.exports.monitor = (() => {
-    var _ref = _asyncToGenerator(function* (options) {
+function monitor(options) {
 
-        yield options.server.register(Inert);
+    const directory = process.env.DASH_DEV_X ? __dirname + '\\node_modules\\appmetrics-dash\\public' : path.resolve(__dirname, '..') + '\\appmetrics-dash\\public';
 
-        const directory = process.env.DASH_DEV_X ? __dirname + '\\node_modules\\appmetrics-dash\\public' : path.resolve(__dirname, '..') + '\\appmetrics-dash\\public';
+    var url = options.url || '/appmetrics-dash/{param*}';
 
-        var url = options.url || '/appmetrics-dash/{param*}';
-
-        options.server.route({
-            method: 'GET',
-            path: url,
-            handler: {
-                directory: {
-                    path: directory,
-                    listing: true
-                }
+    options.server.route({
+        method: 'GET',
+        path: url,
+        handler: {
+            directory: {
+                path: directory,
+                listing: true
             }
-        });
+        }
+    });
 
-        var title = options.title || 'Application Metrics for Node.js';
-        var docs = options.docs || 'https://developer.ibm.com/node/application-metrics-node-js/';
+    var title = options.title || 'Application Metrics for Node.js';
+    var docs = options.docs || 'https://developer.ibm.com/node/application-metrics-node-js/';
 
-        let server = options.server;
+    let server = options.server;
 
-        var appmetrics = require('appmetrics');
-        var monitoring = appmetrics.monitor();
+    var appmetrics = require('appmetrics');
+    var monitoring = appmetrics.monitor();
 
-        io = require('socket.io')(server.listener);
+    io = require('socket.io')(server.listener);
 
-        server.listener.on('newListener', function (eventName, listener) {
-            if (eventName !== 'request') return;
-            if (listener.__dashboard_patched) return;
-            process.nextTick(function () {
-                patch(listener);
-            });
-        });
+    server.listener.on('newListener', function (eventName, listener) {
+        if (eventName !== 'request') return;
+        if (listener.__dashboard_patched) return;
+        process.nextTick(function () { patch(listener); });
+    });
 
-        server.listener.on('newListener', function (eventName, listener) {
-            if (eventName !== 'request') return;
-            if (listener.__dashboard_patched) return;
-            process.nextTick(function () {
-                patch(listener);
-            });
-        });
+    server.listener.on('newListener', function (eventName, listener) {
+        if (eventName !== 'request') return;
+        if (listener.__dashboard_patched) return;
+        process.nextTick(function () { patch(listener); });
+    });
 
-        io.on('connection', function (socket) {
-            var env = monitoring.getEnvironment();
-            var envData = [];
-            var json;
-            for (var entry in env) {
-                switch (entry) {
-                    case 'command.line':
-                        json = {};
-                        json['Parameter'] = 'Command Line';
-                        json['Value'] = env[entry];
-                        envData.push(json);
-                        break;
-                    case 'environment.HOSTNAME':
-                        json = {};
-                        json['Parameter'] = 'Hostname';
-                        json['Value'] = env[entry];
-                        envData.push(json);
-                        break;
-                    case 'os.arch':
-                        json = {};
-                        json['Parameter'] = 'OS Architecture';
-                        json['Value'] = env[entry];
-                        envData.push(json);
-                        break;
-                    case 'number.of.processors':
-                        json = {};
-                        json['Parameter'] = 'Number of Processors';
-                        json['Value'] = env[entry];
-                        envData.push(json);
-                        break;
-                    default:
-                        break;
-                }
+    io.on('connection', function (socket) {
+        var env = monitoring.getEnvironment();
+        var envData = [];
+        var json;
+        for (var entry in env) {
+            switch (entry) {
+                case 'command.line':
+                    json = {};
+                    json['Parameter'] = 'Command Line';
+                    json['Value'] = env[entry];
+                    envData.push(json);
+                    break;
+                case 'environment.HOSTNAME':
+                    json = {};
+                    json['Parameter'] = 'Hostname';
+                    json['Value'] = env[entry];
+                    envData.push(json);
+                    break;
+                case 'os.arch':
+                    json = {};
+                    json['Parameter'] = 'OS Architecture';
+                    json['Value'] = env[entry];
+                    envData.push(json);
+                    break;
+                case 'number.of.processors':
+                    json = {};
+                    json['Parameter'] = 'Number of Processors';
+                    json['Value'] = env[entry];
+                    envData.push(json);
+                    break;
+                default:
+                    break;
             }
-            // Send static data ASAP but re-send below in case the client isn't ready.
+        }
+        // Send static data ASAP but re-send below in case the client isn't ready.
+        socket.emit('environment', JSON.stringify(envData));
+        socket.emit('title', JSON.stringify({ title: title, docs: docs }));
+        socket.emit('status', JSON.stringify({ profiling_enabled: profiling_enabled }));
+
+        // When the client confirms it's connected and has listeners ready,
+        // re-send the static data.
+        socket.on('connected', () => {
             socket.emit('environment', JSON.stringify(envData));
             socket.emit('title', JSON.stringify({ title: title, docs: docs }));
             socket.emit('status', JSON.stringify({ profiling_enabled: profiling_enabled }));
-
-            // When the client confirms it's connected and has listeners ready,
-            // re-send the static data.
-            socket.on('connected', () => {
-                socket.emit('environment', JSON.stringify(envData));
-                socket.emit('title', JSON.stringify({ title: title, docs: docs }));
-                socket.emit('status', JSON.stringify({ profiling_enabled: profiling_enabled }));
-            });
-
-            /*
-             * Support enabling/disabling profiling data
-             */
-            socket.on('enableprofiling', function () {
-                profiling_enabled = true;
-                monitoring.enable('profiling');
-                // Braodcast the profiling change to keep all clients updated.
-                io.emit('status', JSON.stringify({ profiling_enabled: profiling_enabled }));
-            });
-
-            socket.on('disableprofiling', function () {
-                monitoring.disable('profiling');
-                profiling_enabled = false;
-                // Braodcast the profiling change to keep all clients updated.
-                io.emit('status', JSON.stringify({ profiling_enabled: profiling_enabled }));
-                // TODO - Emit an event to say profiling is on or off!
-            });
-
-            // Trigger a NodeReport then emit it via the socket that requested it
-            socket.on('nodereport', function () {
-                debug('on nodereport: possible? %j', !!nodereport);
-                if (nodereport) {
-                    socket.emit('nodereport', { report: nodereport.getReport() });
-                } else {
-                    socket.emit('nodereport', { error: 'node reporting not available' });
-                }
-            });
-
-            // Trigger a heapdump then pass the location of the file generated back to the socket that requested it
-            socket.on('heapdump', function () {
-                appmetrics.writeSnapshot(function (err, filename) {
-                    var fullFileName = path.join(process.cwd(), filename);
-                    socket.emit('heapdump', { location: fullFileName, error: err });
-                });
-            });
         });
 
         /*
-         * Broadcast monitoring data to connected clients when it arrives
+         * Support enabling/disabling profiling data
          */
-        monitoring.on('cpu', function (data) {
-            latestCPUEvent = data;
-            totalProcessCPULoad += data.process;
-            totalSystemCPULoad += data.system;
-            cpuLoadSamples++;
-            latestCPUEvent.processMean = totalProcessCPULoad / cpuLoadSamples;
-            latestCPUEvent.systemMean = totalSystemCPULoad / cpuLoadSamples;
+        socket.on('enableprofiling', function () {
+            profiling_enabled = true;
+            monitoring.enable('profiling');
+            // Braodcast the profiling change to keep all clients updated.
+            io.emit('status', JSON.stringify({ profiling_enabled: profiling_enabled }));
         });
 
-        monitoring.on('memory', function (data) {
-            latestMemEvent = data;
+        socket.on('disableprofiling', function () {
+            monitoring.disable('profiling');
+            profiling_enabled = false;
+            // Braodcast the profiling change to keep all clients updated.
+            io.emit('status', JSON.stringify({ profiling_enabled: profiling_enabled }));
+            // TODO - Emit an event to say profiling is on or off!
         });
 
-        monitoring.on('gc', function (data) {
-            latestGCEvent = data;
-            gcDurationTotal += data.duration;
-            maxHeapUsed = Math.max(maxHeapUsed, data.used);
-            latestGCEvent.timeSummary = gcDurationTotal / (process.uptime() * 1000);
-            latestGCEvent.usedHeapAfterGCMax = maxHeapUsed;
-        });
-
-        monitoring.on('profiling', function (data) {
-            io.emit('profiling', JSON.stringify(data));
-        });
-
-        monitoring.on('loop', function (data) {
-            latestLoopEvent = data;
-        });
-
-        monitoring.on('http', function (data) {
-            if (!aggregateHttpEvent) {
-                aggregateHttpEvent = {};
-                aggregateHttpEvent.total = 1;
-                aggregateHttpEvent.average = data.duration;
-                aggregateHttpEvent.longest = data.duration;
-                aggregateHttpEvent.time = data.time;
-                aggregateHttpEvent.url = data.url;
+        // Trigger a NodeReport then emit it via the socket that requested it
+        socket.on('nodereport', function () {
+            debug('on nodereport: possible? %j', !!nodereport);
+            if (nodereport) {
+                socket.emit('nodereport', { report: nodereport.getReport() });
             } else {
-                aggregateHttpEvent.total = aggregateHttpEvent.total + 1;
-                aggregateHttpEvent.average = (aggregateHttpEvent.average * (aggregateHttpEvent.total - 1) + data.duration) / aggregateHttpEvent.total;
-                if (data.duration > aggregateHttpEvent.longest) {
-                    aggregateHttpEvent.longest = data.duration;
-                    aggregateHttpEvent.url = data.url;
-                }
-            }
-
-            if (httpURLData.hasOwnProperty(data.url)) {
-                var urlData = httpURLData[data.url];
-                // Recalculate the average
-                urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
-                urlData.hits = urlData.hits + 1;
-                if (data.duration > urlData.longest) {
-                    urlData.longest = data.duration;
-                }
-            } else {
-                httpURLData[data.url] = { duration: data.duration, hits: 1, longest: data.duration };
+                socket.emit('nodereport', { error: 'node reporting not available' });
             }
         });
 
-        monitoring.on('https', function (data) {
-            if (!aggregateHttpsEvent) {
-                aggregateHttpsEvent = {};
-                aggregateHttpsEvent.total = 1;
-                aggregateHttpsEvent.average = data.duration;
-                aggregateHttpsEvent.longest = data.duration;
-                aggregateHttpsEvent.time = data.time;
-                aggregateHttpsEvent.url = data.url;
-            } else {
-                aggregateHttpsEvent.total = aggregateHttpsEvent.total + 1;
-                aggregateHttpsEvent.average = (aggregateHttpsEvent.average * (aggregateHttpsEvent.total - 1) + data.duration) / aggregateHttpsEvent.total;
-                if (data.duration > aggregateHttpsEvent.longest) {
-                    aggregateHttpsEvent.longest = data.duration;
-                    aggregateHttpsEvent.url = data.url;
-                }
-            }
-
-            if (httpURLData.hasOwnProperty(data.url)) {
-                var urlData = httpURLData[data.url];
-                // Recalculate the average
-                urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
-                urlData.hits = urlData.hits + 1;
-                if (data.duration > urlData.longest) {
-                    urlData.longest = data.duration;
-                }
-            } else {
-                httpURLData[data.url] = { duration: data.duration, hits: 1, longest: data.duration };
-            }
+        // Trigger a heapdump then pass the location of the file generated back to the socket that requested it
+        socket.on('heapdump', function () {
+            appmetrics.writeSnapshot(function (err, filename) {
+                var fullFileName = path.join(process.cwd(), filename);
+                socket.emit('heapdump', { location: fullFileName, error: err });
+            });
         });
-
-        monitoring.on('http-outbound', function (data) {
-            if (!aggregateHttpOutboundEvent) {
-                aggregateHttpOutboundEvent = {};
-                aggregateHttpOutboundEvent.total = 1;
-                aggregateHttpOutboundEvent.average = data.duration;
-                aggregateHttpOutboundEvent.longest = data.duration;
-                aggregateHttpOutboundEvent.time = data.time;
-                aggregateHttpOutboundEvent.url = data.url;
-            } else {
-                aggregateHttpOutboundEvent.total = aggregateHttpOutboundEvent.total + 1;
-                aggregateHttpOutboundEvent.average = (aggregateHttpOutboundEvent.average * (aggregateHttpOutboundEvent.total - 1) + data.duration) / aggregateHttpOutboundEvent.total;
-                if (data.duration > aggregateHttpOutboundEvent.longest) {
-                    aggregateHttpOutboundEvent.longest = data.duration;
-                    aggregateHttpOutboundEvent.url = data.url;
-                }
-            }
-        });
-
-        monitoring.on('https-outbound', function (data) {
-            if (!aggregateHttpsOutboundEvent) {
-                aggregateHttpsOutboundEvent = {};
-                aggregateHttpsOutboundEvent.total = 1;
-                aggregateHttpsOutboundEvent.average = data.duration;
-                aggregateHttpsOutboundEvent.longest = data.duration;
-                aggregateHttpsOutboundEvent.time = data.time;
-                aggregateHttpsOutboundEvent.url = data.url;
-            } else {
-                aggregateHttpsOutboundEvent.total = aggregateHttpsOutboundEvent.total + 1;
-                aggregateHttpsOutboundEvent.average = (aggregateHttpsOutboundEvent.average * (aggregateHttpsOutboundEvent.total - 1) + data.duration) / aggregateHttpsOutboundEvent.total;
-                if (data.duration > aggregateHttpsOutboundEvent.longest) {
-                    aggregateHttpsOutboundEvent.longest = data.duration;
-                    aggregateHttpsOutboundEvent.url = data.url;
-                }
-            }
-        });
-
-        monitoring.on('mongo', function (data) {
-            addProbeEvent('MongoDB', data);
-        });
-
-        monitoring.on('express', function (data) {
-            addProbeEvent('Express', data);
-        });
-
-        monitoring.on('socketio', function (data) {
-            addProbeEvent('Socket.IO', data);
-        });
-
-        monitoring.on('redis', function (data) {
-            addProbeEvent('Redis', data);
-        });
-
-        monitoring.on('mysql', function (data) {
-            addProbeEvent('MySQL', data);
-        });
-
-        monitoring.on('postgres', function (data) {
-            addProbeEvent('Postgres', data);
-        });
-
-        monitoring.on('riak', function (data) {
-            addProbeEvent('Riak', data);
-        });
-
-        monitoring.on('leveldown', function (data) {
-            addProbeEvent('Leveldown', data);
-        });
-
-        setInterval(emitData, emitInterval).unref();
-        return server;
     });
 
-    return function (_x) {
-        return _ref.apply(this, arguments);
-    };
-})();
+    /*
+     * Broadcast monitoring data to connected clients when it arrives
+     */
+    monitoring.on('cpu', function (data) {
+        latestCPUEvent = data;
+        totalProcessCPULoad += data.process;
+        totalSystemCPULoad += data.system;
+        cpuLoadSamples++;
+        latestCPUEvent.processMean = (totalProcessCPULoad / cpuLoadSamples);
+        latestCPUEvent.systemMean = (totalSystemCPULoad / cpuLoadSamples);
+    });
+
+    monitoring.on('memory', function (data) {
+        latestMemEvent = data;
+    });
+
+    monitoring.on('gc', function (data) {
+        latestGCEvent = data;
+        gcDurationTotal += data.duration;
+        maxHeapUsed = Math.max(maxHeapUsed, data.used);
+        latestGCEvent.timeSummary = (gcDurationTotal / (process.uptime() * 1000));
+        latestGCEvent.usedHeapAfterGCMax = maxHeapUsed;
+    });
+
+    monitoring.on('profiling', function (data) {
+        io.emit('profiling', JSON.stringify(data));
+    });
+
+    monitoring.on('loop', function (data) {
+        latestLoopEvent = data;
+    });
+
+    monitoring.on('http', function (data) {
+        if (!aggregateHttpEvent) {
+            aggregateHttpEvent = {};
+            aggregateHttpEvent.total = 1;
+            aggregateHttpEvent.average = data.duration;
+            aggregateHttpEvent.longest = data.duration;
+            aggregateHttpEvent.time = data.time;
+            aggregateHttpEvent.url = data.url;
+        } else {
+            aggregateHttpEvent.total = aggregateHttpEvent.total + 1;
+            aggregateHttpEvent.average = (aggregateHttpEvent.average * (aggregateHttpEvent.total - 1) + data.duration) / aggregateHttpEvent.total;
+            if (data.duration > aggregateHttpEvent.longest) {
+                aggregateHttpEvent.longest = data.duration;
+                aggregateHttpEvent.url = data.url;
+            }
+        }
+
+        if (httpURLData.hasOwnProperty(data.url)) {
+            var urlData = httpURLData[data.url];
+            // Recalculate the average
+            urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
+            urlData.hits = urlData.hits + 1;
+            if (data.duration > urlData.longest) {
+                urlData.longest = data.duration;
+            }
+        } else {
+            httpURLData[data.url] = { duration: data.duration, hits: 1, longest: data.duration };
+        }
+
+    });
+
+    monitoring.on('https', function (data) {
+        if (!aggregateHttpsEvent) {
+            aggregateHttpsEvent = {};
+            aggregateHttpsEvent.total = 1;
+            aggregateHttpsEvent.average = data.duration;
+            aggregateHttpsEvent.longest = data.duration;
+            aggregateHttpsEvent.time = data.time;
+            aggregateHttpsEvent.url = data.url;
+        } else {
+            aggregateHttpsEvent.total = aggregateHttpsEvent.total + 1;
+            aggregateHttpsEvent.average = (aggregateHttpsEvent.average * (aggregateHttpsEvent.total - 1) + data.duration) / aggregateHttpsEvent.total;
+            if (data.duration > aggregateHttpsEvent.longest) {
+                aggregateHttpsEvent.longest = data.duration;
+                aggregateHttpsEvent.url = data.url;
+            }
+        }
+
+        if (httpURLData.hasOwnProperty(data.url)) {
+            var urlData = httpURLData[data.url];
+            // Recalculate the average
+            urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
+            urlData.hits = urlData.hits + 1;
+            if (data.duration > urlData.longest) {
+                urlData.longest = data.duration;
+            }
+        } else {
+            httpURLData[data.url] = { duration: data.duration, hits: 1, longest: data.duration };
+        }
+
+    });
+
+    monitoring.on('http-outbound', function (data) {
+        if (!aggregateHttpOutboundEvent) {
+            aggregateHttpOutboundEvent = {};
+            aggregateHttpOutboundEvent.total = 1;
+            aggregateHttpOutboundEvent.average = data.duration;
+            aggregateHttpOutboundEvent.longest = data.duration;
+            aggregateHttpOutboundEvent.time = data.time;
+            aggregateHttpOutboundEvent.url = data.url;
+        } else {
+            aggregateHttpOutboundEvent.total = aggregateHttpOutboundEvent.total + 1;
+            aggregateHttpOutboundEvent.average = (aggregateHttpOutboundEvent.average * (aggregateHttpOutboundEvent.total - 1) + data.duration) / aggregateHttpOutboundEvent.total;
+            if (data.duration > aggregateHttpOutboundEvent.longest) {
+                aggregateHttpOutboundEvent.longest = data.duration;
+                aggregateHttpOutboundEvent.url = data.url;
+            }
+        }
+    });
+
+    monitoring.on('https-outbound', function (data) {
+        if (!aggregateHttpsOutboundEvent) {
+            aggregateHttpsOutboundEvent = {};
+            aggregateHttpsOutboundEvent.total = 1;
+            aggregateHttpsOutboundEvent.average = data.duration;
+            aggregateHttpsOutboundEvent.longest = data.duration;
+            aggregateHttpsOutboundEvent.time = data.time;
+            aggregateHttpsOutboundEvent.url = data.url;
+        } else {
+            aggregateHttpsOutboundEvent.total = aggregateHttpsOutboundEvent.total + 1;
+            aggregateHttpsOutboundEvent.average = (aggregateHttpsOutboundEvent.average * (aggregateHttpsOutboundEvent.total - 1) + data.duration) / aggregateHttpsOutboundEvent.total;
+            if (data.duration > aggregateHttpsOutboundEvent.longest) {
+                aggregateHttpsOutboundEvent.longest = data.duration;
+                aggregateHttpsOutboundEvent.url = data.url;
+            }
+        }
+    });
+
+    monitoring.on('mongo', function (data) {
+        addProbeEvent('MongoDB', data);
+    });
+
+    monitoring.on('express', function (data) {
+        addProbeEvent('Express', data);
+    });
+
+    monitoring.on('socketio', function (data) {
+        addProbeEvent('Socket.IO', data);
+    });
+
+    monitoring.on('redis', function (data) {
+        addProbeEvent('Redis', data);
+    });
+
+    monitoring.on('mysql', function (data) {
+        addProbeEvent('MySQL', data);
+    });
+
+    monitoring.on('postgres', function (data) {
+        addProbeEvent('Postgres', data);
+    });
+
+    monitoring.on('riak', function (data) {
+        addProbeEvent('Riak', data);
+    });
+
+    monitoring.on('leveldown', function (data) {
+        addProbeEvent('Leveldown', data);
+    });
+
+    setInterval(emitData, emitInterval).unref();
+    return server;
+}
+
+module.exports.monitor = (options) => {
+    options.server.register(Inert, (error) => {
+        if (error) {
+            console.log(error);
+            return;
+        }
+        monitor(options);
+    })
+}
 
 function addProbeEvent(probename, data) {
     var found = false;
