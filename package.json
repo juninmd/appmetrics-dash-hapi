@@ -1,0 +1,17 @@
+{
+  "name": "appmetrics-dash-hapi",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "appmetrics-dash": "^3.4.0",
+    "hapi": "16.0.0",
+    "inert": "4.2.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
