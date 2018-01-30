@@ -1,6 +1,7 @@
 const debug = require('debug')('appmetrics-dash');
 const util = require('util');
 const Inert = require('inert');
+const path = require('path');
 
 // Buffer 1 cpu, gc and memory event and aggregate other events
 var latestCPUEvent;
@@ -38,7 +39,7 @@ module.exports.monitor = async (options) => {
 
     await options.server.register(Inert);
 
-    const directory = __dirname + '\\node_modules\\appmetrics-dash\\public';
+    const directory = path.resolve(__dirname, '..') + '\\appmetrics-dash\\public';
 
     var url = options.url || '/appmetrics-dash/{param*}';
 
