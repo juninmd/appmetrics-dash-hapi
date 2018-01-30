@@ -17,7 +17,7 @@ Adaptation of (appmetrics-dash) for Hapi
     server.connection({ port: 3000 });
 
     // Add Here
-    const appmetrics = require('../index');
+    const appmetrics = require('appmetrics-dash-hapi');
     appmetrics.monitor({ server: server })
     // End
 
