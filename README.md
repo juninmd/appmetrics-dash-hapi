@@ -8,6 +8,10 @@ Adaptation of (appmetrics-dash) for Hapi
 ```
     yarn add appmetrics-dash-hapi
 ```
+or
+```
+    npm install appmetrics-dash-hapi --save
+```
 
 ## Example
 
@@ -34,4 +38,10 @@ Adaptation of (appmetrics-dash) for Hapi
             console.log(`Server running at: ${server.info.uri}`);
         });
     });
+```
+
+## Finish
+
+```
+    http://localhost:3000/appmetrics-dash/
 ```

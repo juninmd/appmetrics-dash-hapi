@@ -1,6 +1,6 @@
 {
   "name": "appmetrics-dash-hapi",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "index.js",
   "dependencies": {
     "appmetrics-dash": "^3.4.0",

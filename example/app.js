@@ -1,3 +1,4 @@
+process.env.DASH_DEV_X = 'on';
 const Hapi = require('hapi');
 const server = new Hapi.Server();
 server.connection({ port: 3000 });
