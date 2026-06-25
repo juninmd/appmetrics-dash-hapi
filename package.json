@@ -2,16 +2,60 @@
   "name": "appmetrics-dash-hapi",
   "version": "1.0.5",
   "main": "index.js",
+  "files": [
+    "index.js",
+    "README.md"
+  ],
   "dependencies": {
     "appmetrics-dash": "^3.4.0",
     "hapi": "16.0.0",
     "inert": "4.2.1"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "chai": "^4.3.7",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "mocha": "^10.2.0",
+    "nyc": "^15.1.0",
+    "prettier": "^3.2.4",
+    "proxyquire": "^2.1.3",
+    "sinon": "^17.0.1",
+    "socket.io-client": "^2.5.0"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "lint": "eslint index.js test/",
+    "lint:fix": "eslint --fix index.js test/",
+    "format": "prettier --write '**/*.js' '**/*.json' '**/*.md'",
+    "format:check": "prettier --check '**/*.js' '**/*.json' '**/*.md'",
+    "test": "mocha 'test/**/*.test.js' --timeout 10000",
+    "test:coverage": "nyc --reporter=lcov --reporter=text --reporter=text-summary mocha 'test/**/*.test.js' --timeout 10000",
+    "pretest": "yarn lint",
+    "build": "echo 'No build step required'",
+    "prepack": "yarn test:coverage",
+    "audit": "yarn audit --level high"
   },
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "Adaptation of appmetrics-dash for Hapi",
+  "nyc": {
+    "all": true,
+    "include": [
+      "index.js"
+    ],
+    "exclude": [
+      "test/",
+      "example/",
+      "coverage/"
+    ],
+    "reporter": [
+      "lcov",
+      "text",
+      "text-summary"
+    ],
+    "check-coverage": true,
+    "branches": 80,
+    "lines": 80,
+    "functions": 80,
+    "statements": 80
+  }
 }

@@ -1,3 +1,5 @@
+'use strict';
+
 const debug = require('debug')('appmetrics-dash');
 const util = require('util');
 const Inert = require('inert');
@@ -33,6 +35,11 @@ var save = {
 };
 
 let profiling_enabled = false;
+let nodereport;
+
+function patch(listener) {
+    listener.__dashboard_patched = true;
+}
 
 function monitor(options) {
 
@@ -58,6 +65,10 @@ function monitor(options) {
 
     var appmetrics = require('appmetrics');
     var monitoring = appmetrics.monitor();
+
+    if (monitoring.getNodeReport) {
+        nodereport = monitoring.getNodeReport();
+    }
 
     io = require('socket.io')(server.listener);
 
@@ -206,7 +217,7 @@ function monitor(options) {
             }
         }
 
-        if (httpURLData.hasOwnProperty(data.url)) {
+        if (Object.prototype.hasOwnProperty.call(httpURLData, data.url)) {
             var urlData = httpURLData[data.url];
             // Recalculate the average
             urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
@@ -237,7 +248,7 @@ function monitor(options) {
             }
         }
 
-        if (httpURLData.hasOwnProperty(data.url)) {
+        if (Object.prototype.hasOwnProperty.call(httpURLData, data.url)) {
             var urlData = httpURLData[data.url];
             // Recalculate the average
             urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
@@ -330,8 +341,8 @@ module.exports.monitor = (options) => {
             return;
         }
         monitor(options);
-    })
-}
+    });
+};
 
 function addProbeEvent(probename, data) {
     var found = false;
@@ -389,7 +400,7 @@ function emitData() {
     if (Object.keys(httpURLData).length > 0) {
         var result = [];
         for (var url in httpURLData) {
-            if (httpURLData.hasOwnProperty(url)) {
+            if (Object.prototype.hasOwnProperty.call(httpURLData, url)) {
                 httpURLData[url];
                 var json = {};
                 json['url'] = url;
