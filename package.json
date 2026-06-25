@@ -3,7 +3,7 @@
   "version": "1.0.5",
   "main": "index.js",
   "dependencies": {
-    "appmetrics-dash": "^3.4.0",
+    "appmetrics-dash": "^5.3.0",
     "hapi": "18.1.0",
     "inert": "5.1.3"
   },
