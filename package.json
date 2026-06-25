@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "mocha": "11.7.6",
-    "chai": "4.5.0"
+    "chai": "6.2.2"
   },
   "scripts": {
     "test": "mocha --reporter spec --timeout 10000 test/test.js",
