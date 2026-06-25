@@ -34,11 +34,81 @@ var save = {
 
 let profiling_enabled = false;
 
+// Rate limiting state for socket connections
+const connectionAttempts = new Map();
+const CONNECTION_RATE_LIMIT = 20;
+const CONNECTION_WINDOW_MS = 60000;
+
+// Known safe socket event names (allowlist)
+const ALLOWED_SOCKET_EVENTS = new Set([
+    'connected',
+    'enableprofiling',
+    'disableprofiling',
+    'nodereport',
+    'heapdump',
+]);
+
+function sanitizeUrlPath(input) {
+    if (typeof input !== 'string') return '/appmetrics-dash/{param*}';
+    // Prevent path traversal and route injection
+    if (/\.\./.test(input) || /[^a-zA-Z0-9\-_./{}*@:~]/.test(input)) {
+        return '/appmetrics-dash/{param*}';
+    }
+    return input;
+}
+
+function isRateLimited(ip) {
+    const now = Date.now();
+    const record = connectionAttempts.get(ip);
+    if (!record) {
+        connectionAttempts.set(ip, { count: 1, windowStart: now });
+        return false;
+    }
+    if (now - record.windowStart > CONNECTION_WINDOW_MS) {
+        record.count = 1;
+        record.windowStart = now;
+        return false;
+    }
+    record.count++;
+    return record.count > CONNECTION_RATE_LIMIT;
+}
+
+function sanitizeError(err) {
+    if (!err) return 'Unknown error';
+    if (err instanceof Error) {
+        return err.message || 'Internal error';
+    }
+    return String(err).substring(0, 200);
+}
+
+function addSecurityHeaders(server) {
+    server.ext('onPreResponse', function (request, reply) {
+        const response = request.response;
+        if (response && response.isBoom) {
+            response.output.headers['X-Content-Type-Options'] = 'nosniff';
+            response.output.headers['X-Frame-Options'] = 'DENY';
+            response.output.headers['X-XSS-Protection'] = '1; mode=block';
+        }
+        if (response && response.headers) {
+            response.headers['X-Content-Type-Options'] = 'nosniff';
+            response.headers['X-Frame-Options'] = 'DENY';
+            response.headers['X-XSS-Protection'] = '1; mode=block';
+        }
+        return reply.continue;
+    });
+}
+
 function monitor(options) {
+    if (!options || typeof options !== 'object') {
+        throw new Error('Options object is required');
+    }
+    if (!options.server) {
+        throw new Error('Server instance is required');
+    }
 
     const directory = process.env.DASH_DEV_X ? __dirname + '\\node_modules\\appmetrics-dash\\public' : path.resolve(__dirname, '..') + '\\appmetrics-dash\\public';
 
-    var url = options.url || '/appmetrics-dash/{param*}';
+    var url = sanitizeUrlPath(options.url || '/appmetrics-dash/{param*}');
 
     options.server.route({
         method: 'GET',
@@ -59,7 +129,17 @@ function monitor(options) {
     var appmetrics = require('appmetrics');
     var monitoring = appmetrics.monitor();
 
-    io = require('socket.io')(server.listener);
+    const socketioOpts = {};
+    // Apply CORS settings if provided
+    if (options.cors) {
+        if (typeof options.cors === 'object') {
+            socketioOpts.cors = options.cors;
+        }
+    }
+    io = require('socket.io')(server.listener, socketioOpts);
+
+    // Add security headers
+    addSecurityHeaders(server);
 
     server.listener.on('newListener', function (eventName, listener) {
         if (eventName !== 'request') return;
@@ -74,6 +154,15 @@ function monitor(options) {
     });
 
     io.on('connection', function (socket) {
+        // Rate limit check
+        const clientIp = socket.handshake.address || socket.request.connection.remoteAddress || 'unknown';
+        if (isRateLimited(clientIp)) {
+            debug('Rate limit exceeded for %s', clientIp);
+            socket.emit('error', 'Rate limit exceeded. Please try again later.');
+            socket.disconnect(true);
+            return;
+        }
+
         var env = monitoring.getEnvironment();
         var envData = [];
         var json;
@@ -114,7 +203,7 @@ function monitor(options) {
 
         // When the client confirms it's connected and has listeners ready,
         // re-send the static data.
-        socket.on('connected', () => {
+        socket.on('connected', function () {
             socket.emit('environment', JSON.stringify(envData));
             socket.emit('title', JSON.stringify({ title: title, docs: docs }));
             socket.emit('status', JSON.stringify({ profiling_enabled: profiling_enabled }));
@@ -142,7 +231,12 @@ function monitor(options) {
         socket.on('nodereport', function () {
             debug('on nodereport: possible? %j', !!nodereport);
             if (nodereport) {
-                socket.emit('nodereport', { report: nodereport.getReport() });
+                try {
+                    socket.emit('nodereport', { report: nodereport.getReport() });
+                } catch (err) {
+                    debug('nodereport error: %s', sanitizeError(err));
+                    socket.emit('nodereport', { error: 'Failed to generate report' });
+                }
             } else {
                 socket.emit('nodereport', { error: 'node reporting not available' });
             }
@@ -151,10 +245,26 @@ function monitor(options) {
         // Trigger a heapdump then pass the location of the file generated back to the socket that requested it
         socket.on('heapdump', function () {
             appmetrics.writeSnapshot(function (err, filename) {
+                if (err) {
+                    debug('heapdump error: %s', sanitizeError(err));
+                    socket.emit('heapdump', { error: 'Failed to generate heapdump' });
+                    return;
+                }
                 var fullFileName = path.join(process.cwd(), filename);
-                socket.emit('heapdump', { location: fullFileName, error: err });
+                socket.emit('heapdump', { location: fullFileName, error: null });
             });
         });
+
+        // Validate unknown events from clients
+        socket._events = socket._events || {};
+        var originalOn = socket.on;
+        socket.on = function (event) {
+            if (!ALLOWED_SOCKET_EVENTS.has(event)) {
+                debug('Blocked unknown socket event: %s', event);
+                return socket;
+            }
+            return originalOn.apply(socket, arguments);
+        };
     });
 
     /*
@@ -323,15 +433,69 @@ function monitor(options) {
     return server;
 }
 
-module.exports.monitor = (options) => {
-    options.server.register(Inert, (error) => {
+module.exports.monitor = function (options) {
+    if (!options || !options.server) {
+        throw new Error('A valid options object with a server property is required');
+    }
+    options.server.register(Inert, function (error) {
         if (error) {
-            console.log(error);
+            debug('Failed to register Inert: %s', sanitizeError(error));
             return;
         }
-        monitor(options);
-    })
+        try {
+            monitor(options);
+        } catch (err) {
+            debug('Failed to initialize monitor: %s', sanitizeError(err));
+        }
+    });
+};
+
+module.exports.sanitizeUrlPath = sanitizeUrlPath;
+module.exports.sanitizeError = sanitizeError;
+module.exports.isRateLimited = isRateLimited;
+module.exports.ALLOWED_SOCKET_EVENTS = ALLOWED_SOCKET_EVENTS;
+module.exports.CONNECTION_RATE_LIMIT = CONNECTION_RATE_LIMIT;
+module.exports.CONNECTION_WINDOW_MS = CONNECTION_WINDOW_MS;
+
+function buildCorsOptions(userCors) {
+    var defaults = {
+        origin: '*',
+        methods: ['GET', 'POST'],
+    };
+    if (!userCors || typeof userCors !== 'object') return defaults;
+    var result = {};
+    result.methods = defaults.methods;
+    if (userCors.origin && userCors.origin !== '*') {
+        result.origin = userCors.origin;
+    } else if (userCors.origin === '*') {
+        // Wildcard origin with credentials is insecure
+        if (userCors.credentials) {
+            result.origin = false;
+        } else {
+            result.origin = '*';
+        }
+    } else {
+        result.origin = '*';
+    }
+    if (userCors.methods && Array.isArray(userCors.methods)) {
+        result.methods = userCors.methods;
+    }
+    if (userCors.credentials) {
+        result.credentials = true;
+    }
+    return result;
 }
+
+function getSecurityHeaders() {
+    return {
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
+    };
+}
+
+module.exports.buildCorsOptions = buildCorsOptions;
+module.exports.getSecurityHeaders = getSecurityHeaders;
 
 function addProbeEvent(probename, data) {
     var found = false;
