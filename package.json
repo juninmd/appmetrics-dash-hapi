@@ -5,7 +5,7 @@
   "dependencies": {
     "appmetrics-dash": "^3.4.0",
     "hapi": "18.1.0",
-    "inert": "4.2.1"
+    "inert": "5.1.3"
   },
   "devDependencies": {
     "mocha": "11.7.6",
