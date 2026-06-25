@@ -39,6 +39,16 @@ const connectionAttempts = new Map();
 const CONNECTION_RATE_LIMIT = 20;
 const CONNECTION_WINDOW_MS = 60000;
 
+// Periodically clean up expired rate limit records to prevent memory leaks
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of connectionAttempts.entries()) {
+        if (now - record.windowStart > CONNECTION_WINDOW_MS) {
+            connectionAttempts.delete(ip);
+        }
+    }
+}, CONNECTION_WINDOW_MS).unref();
+
 // Known safe socket event names (allowlist)
 const ALLOWED_SOCKET_EVENTS = new Set([
     'connected',
@@ -94,7 +104,7 @@ function addSecurityHeaders(server) {
             response.headers['X-Frame-Options'] = 'DENY';
             response.headers['X-XSS-Protection'] = '1; mode=block';
         }
-        return reply.continue;
+        return reply.continue();
     });
 }
 
@@ -132,8 +142,11 @@ function monitor(options) {
     const socketioOpts = {};
     // Apply CORS settings if provided
     if (options.cors) {
-        if (typeof options.cors === 'object') {
-            socketioOpts.cors = options.cors;
+        const corsOpts = buildCorsOptions(options.cors);
+        if (corsOpts.origin === false) {
+            socketioOpts.origins = (origin, callback) => callback(new Error('CORS not allowed'), false);
+        } else {
+            socketioOpts.origins = corsOpts.origin;
         }
     }
     io = require('socket.io')(server.listener, socketioOpts);
@@ -256,14 +269,14 @@ function monitor(options) {
         });
 
         // Validate unknown events from clients
-        socket._events = socket._events || {};
-        var originalOn = socket.on;
-        socket.on = function (event) {
-            if (!ALLOWED_SOCKET_EVENTS.has(event)) {
-                debug('Blocked unknown socket event: %s', event);
-                return socket;
+        const originalOnevent = socket.onevent;
+        socket.onevent = function (packet) {
+            const args = packet.data || [];
+            if (args.length > 0 && !ALLOWED_SOCKET_EVENTS.has(args[0])) {
+                debug('Blocked unknown socket event: %s', args[0]);
+                return;
             }
-            return originalOn.apply(socket, arguments);
+            originalOnevent.call(this, packet);
         };
     });
 
