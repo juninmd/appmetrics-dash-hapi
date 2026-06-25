@@ -33,6 +33,13 @@ var save = {
 };
 
 let profiling_enabled = false;
+var nodereport;
+
+try {
+    nodereport = require('node-report');
+} catch (e) {
+    nodereport = null;
+}
 
 function monitor(options) {
 
@@ -56,10 +63,10 @@ function monitor(options) {
 
     let server = options.server;
 
-    var appmetrics = require('appmetrics');
+    var appmetrics = options.appmetrics || require('appmetrics');
     var monitoring = appmetrics.monitor();
 
-    io = require('socket.io')(server.listener);
+    io = options.socketIo ? options.socketIo(server.listener) : require('socket.io')(server.listener);
 
     server.listener.on('newListener', function (eventName, listener) {
         if (eventName !== 'request') return;
@@ -330,7 +337,7 @@ module.exports.monitor = (options) => {
             return;
         }
         monitor(options);
-    })
+    });
 }
 
 function addProbeEvent(probename, data) {
