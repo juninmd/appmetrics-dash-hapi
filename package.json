@@ -24,7 +24,7 @@
     "appmetrics": "^3.1.0",
     "appmetrics-dash": "^3.4.0",
     "debug": "^2.6.0",
-    "hapi": "16.0.0",
+    "hapi": "18.1.0",
     "inert": "4.2.1",
     "node-report": "^2.1.0",
     "socket.io": "^2.0.3"
