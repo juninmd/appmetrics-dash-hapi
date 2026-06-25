@@ -49,6 +49,16 @@ setInterval(() => {
     }
 }, CONNECTION_WINDOW_MS).unref();
 
+// Periodically clean up expired rate limit records to prevent memory leaks
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of connectionAttempts.entries()) {
+        if (now - record.windowStart > CONNECTION_WINDOW_MS) {
+            connectionAttempts.delete(ip);
+        }
+    }
+}, CONNECTION_WINDOW_MS).unref();
+
 // Known safe socket event names (allowlist)
 const ALLOWED_SOCKET_EVENTS = new Set([
     'connected',
