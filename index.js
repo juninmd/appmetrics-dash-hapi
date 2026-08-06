@@ -1,3 +1,5 @@
+'use strict';
+
 const debug = require('debug')('appmetrics-dash');
 const util = require('util');
 const Inert = require('inert');
@@ -33,47 +35,11 @@ var save = {
 };
 
 let profiling_enabled = false;
-var nodereport;
+let nodereport;
 
-try {
-    nodereport = require('node-report');
-} catch (e) {
-    nodereport = null;
+function patch(listener) {
+    listener.__dashboard_patched = true;
 }
-
-// Rate limiting state for socket connections
-const connectionAttempts = new Map();
-const CONNECTION_RATE_LIMIT = 20;
-const CONNECTION_WINDOW_MS = 60000;
-
-// Periodically clean up expired rate limit records to prevent memory leaks
-setInterval(() => {
-    const now = Date.now();
-    for (const [ip, record] of connectionAttempts.entries()) {
-        if (now - record.windowStart > CONNECTION_WINDOW_MS) {
-            connectionAttempts.delete(ip);
-        }
-    }
-}, CONNECTION_WINDOW_MS).unref();
-
-// Periodically clean up expired rate limit records to prevent memory leaks
-setInterval(() => {
-    const now = Date.now();
-    for (const [ip, record] of connectionAttempts.entries()) {
-        if (now - record.windowStart > CONNECTION_WINDOW_MS) {
-            connectionAttempts.delete(ip);
-        }
-    }
-}, CONNECTION_WINDOW_MS).unref();
-
-// Known safe socket event names (allowlist)
-const ALLOWED_SOCKET_EVENTS = new Set([
-    'connected',
-    'enableprofiling',
-    'disableprofiling',
-    'nodereport',
-    'heapdump',
-]);
 
 function sanitizeUrlPath(input) {
     if (typeof input !== 'string') return '/appmetrics-dash/{param*}';
@@ -156,26 +122,13 @@ function monitor(options) {
     var appmetrics = options.appmetrics || require('appmetrics');
     var monitoring = appmetrics.monitor();
 
-    const socketioOpts = {};
-    // Apply CORS settings if provided
-    if (options.cors) {
-        const corsOpts = buildCorsOptions(options.cors);
-        if (corsOpts.origin === false) {
-            socketioOpts.origins = (origin, callback) => callback(new Error('CORS not allowed'), false);
-        } else {
-            socketioOpts.origins = corsOpts.origin;
-        }
+    if (monitoring.getNodeReport) {
+        nodereport = monitoring.getNodeReport();
     }
-    io = options.socketIo ? options.socketIo(server.listener, socketioOpts) : require('socket.io')(server.listener, socketioOpts);
 
-    // Add security headers
+    io = options.socketIo ? options.socketIo(server.listener) : require('socket.io')(server.listener);
+
     addSecurityHeaders(server);
-
-    server.listener.on('newListener', function (eventName, listener) {
-        if (eventName !== 'request') return;
-        if (listener.__dashboard_patched) return;
-        process.nextTick(function () { patch(listener); });
-    });
 
     server.listener.on('newListener', function (eventName, listener) {
         if (eventName !== 'request') return;
@@ -346,7 +299,7 @@ function monitor(options) {
             }
         }
 
-        if (httpURLData.hasOwnProperty(data.url)) {
+        if (Object.prototype.hasOwnProperty.call(httpURLData, data.url)) {
             var urlData = httpURLData[data.url];
             // Recalculate the average
             urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
@@ -377,7 +330,7 @@ function monitor(options) {
             }
         }
 
-        if (httpURLData.hasOwnProperty(data.url)) {
+        if (Object.prototype.hasOwnProperty.call(httpURLData, data.url)) {
             var urlData = httpURLData[data.url];
             // Recalculate the average
             urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
@@ -463,70 +416,6 @@ function monitor(options) {
     return server;
 }
 
-module.exports.monitor = function (options) {
-    if (!options || !options.server) {
-        throw new Error('A valid options object with a server property is required');
-    }
-    options.server.register(Inert, function (error) {
-        if (error) {
-            debug('Failed to register Inert: %s', sanitizeError(error));
-            return;
-        }
-        try {
-            monitor(options);
-        } catch (err) {
-            debug('Failed to initialize monitor: %s', sanitizeError(err));
-        }
-    });
-};
-
-module.exports.sanitizeUrlPath = sanitizeUrlPath;
-module.exports.sanitizeError = sanitizeError;
-module.exports.isRateLimited = isRateLimited;
-module.exports.ALLOWED_SOCKET_EVENTS = ALLOWED_SOCKET_EVENTS;
-module.exports.CONNECTION_RATE_LIMIT = CONNECTION_RATE_LIMIT;
-module.exports.CONNECTION_WINDOW_MS = CONNECTION_WINDOW_MS;
-
-function buildCorsOptions(userCors) {
-    var defaults = {
-        origin: '*',
-        methods: ['GET', 'POST'],
-    };
-    if (!userCors || typeof userCors !== 'object') return defaults;
-    var result = {};
-    result.methods = defaults.methods;
-    if (userCors.origin && userCors.origin !== '*') {
-        result.origin = userCors.origin;
-    } else if (userCors.origin === '*') {
-        // Wildcard origin with credentials is insecure
-        if (userCors.credentials) {
-            result.origin = false;
-        } else {
-            result.origin = '*';
-        }
-    } else {
-        result.origin = '*';
-    }
-    if (userCors.methods && Array.isArray(userCors.methods)) {
-        result.methods = userCors.methods;
-    }
-    if (userCors.credentials) {
-        result.credentials = true;
-    }
-    return result;
-}
-
-function getSecurityHeaders() {
-    return {
-        'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'DENY',
-        'X-XSS-Protection': '1; mode=block',
-    };
-}
-
-module.exports.buildCorsOptions = buildCorsOptions;
-module.exports.getSecurityHeaders = getSecurityHeaders;
-
 function addProbeEvent(probename, data) {
     var found = false;
     for (var i = 0; i < aggregateProbeEvents.length; i++) {
@@ -583,7 +472,7 @@ function emitData() {
     if (Object.keys(httpURLData).length > 0) {
         var result = [];
         for (var url in httpURLData) {
-            if (httpURLData.hasOwnProperty(url)) {
+            if (Object.prototype.hasOwnProperty.call(httpURLData, url)) {
                 httpURLData[url];
                 var json = {};
                 json['url'] = url;
@@ -596,3 +485,68 @@ function emitData() {
         io.emit('http-urls', JSON.stringify(result));
     }
 }
+
+module.exports.monitor = function (options) {
+    if (!options || !options.server) {
+        throw new Error('A valid options object with a server property is required');
+    }
+    options.server.register(Inert, function (error) {
+        if (error) {
+            debug('Failed to register Inert: %s', sanitizeError(error));
+            return;
+        }
+        try {
+            monitor(options);
+        } catch (err) {
+            debug('Failed to initialize monitor: %s', sanitizeError(err));
+        }
+    });
+};
+
+module.exports.sanitizeUrlPath = sanitizeUrlPath;
+module.exports.sanitizeError = sanitizeError;
+module.exports.isRateLimited = isRateLimited;
+module.exports.ALLOWED_SOCKET_EVENTS = ALLOWED_SOCKET_EVENTS;
+module.exports.CONNECTION_RATE_LIMIT = CONNECTION_RATE_LIMIT;
+module.exports.CONNECTION_WINDOW_MS = CONNECTION_WINDOW_MS;
+
+function buildCorsOptions(userCors) {
+    var defaults = {
+        origin: '*',
+        methods: ['GET', 'POST'],
+    };
+    if (!userCors || typeof userCors !== 'object') return defaults;
+    var result = {};
+    result.methods = defaults.methods;
+    if (userCors.origin && userCors.origin !== '*') {
+        result.origin = userCors.origin;
+    } else if (userCors.origin === '*') {
+        // Wildcard origin with credentials is insecure
+        if (userCors.credentials) {
+            result.origin = false;
+        } else {
+            result.origin = '*';
+        }
+    } else {
+        result.origin = '*';
+    }
+    if (userCors.methods && Array.isArray(userCors.methods)) {
+        result.methods = userCors.methods;
+    }
+    if (userCors.credentials) {
+        result.credentials = true;
+    }
+    return result;
+}
+
+module.exports.buildCorsOptions = buildCorsOptions;
+
+function getSecurityHeaders() {
+    return {
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
+    };
+}
+
+module.exports.getSecurityHeaders = getSecurityHeaders;
