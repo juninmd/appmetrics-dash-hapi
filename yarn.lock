@@ -1,3 +1,101 @@
-REASONING: This is a yarn.lock (auto-generated) merge conflict. Resolution strategy: remove all conflict markers and keep both sides' entries, since yarn.lock supports multiple versions of the same package. Where the exact same package key appears in both HEAD and upstream, keep upstream/master's version (newer registry). Deduplicate identical entries that appear twice (e.g., `accepts@1.3.3`).
+"@isaacs/cliui@^8.0.2":
+  version "8.0.2"
+  resolved "https://registry.yarnpkg.com/@isaacs/cliui/-/cliui-8.0.2.tgz#b37667b7bc181c168782259bab42474fbf52b550"
+  integrity sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==
+  dependencies:
+    string-width "^5.1.2"
+    string-width-cjs "npm:string-width@^4.2.0"
+    strip-ansi "^7.0.1"
+    strip-ansi-cjs "npm:strip-ansi@^6.0.1"
+    wrap-ansi "^8.1.0"
+    wrap-ansi-cjs "npm:wrap-ansi@^7.0.0"
 
-CONTENT:
+"@pkgjs/parseargs@^0.11.0":
+  version "0.11.0"
+  resolved "https://registry.yarnpkg.com/@pkgjs/parseargs/-/parseargs-0.11.0.tgz#a77ea742fab25775145434eb1d2328cf5013ac33"
+  integrity sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==
+
+abbrev@1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/abbrev/-/abbrev-1.1.1.tgz#f8f2c887ad10bf67f634f005b6987fed3179aac8"
+  integrity sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==
+
+accept@3.x.x:
+  version "3.1.3"
+  resolved "https://registry.yarnpkg.com/accept/-/accept-3.1.3.tgz#29c3e2b3a8f4eedbc2b690e472b9ebbdc7385e87"
+  integrity sha512-OgOEAidVEOKPup+Gv2+2wdH2AgVKI9LxsJ4hicdJ6cY0faUuZdZoi56kkXWlHp9qicN1nWQLmW5ZRGk+SBS5xg==
+  dependencies:
+    boom "7.x.x"
+    hoek "6.x.x"
+
+accepts@1.3.3:
+  version "1.3.3"
+  resolved "https://registry.npmjs.org/accepts/-/accepts-1.3.3.tgz"
+  integrity sha512-AOPopplFOUlmUugwiZUCDpOwmqvSgdCyE8iJVLWI4NcB7qfMKQN34dn5xYtlUU03XGG5egRWW4NW5gIxpa5hEA==
+  dependencies:
+    mime-types "~2.1.11"
+    negotiator "0.6.1"
+
+accepts@~1.3.4:
+  version "1.3.4"
+  resolved "https://registry.npmjs.org/accepts/-/accepts-1.3.4.tgz"
+  integrity sha512-2wzn4SzQLKl9o0pwlXIRG3YBZj8aGUGfcJTIjhrOWusCZ6c5mjjvUnpf+07pjdheuuOtRIKYAd/3CX973Qv/vw==
+  dependencies:
+    mime-types "~2.1.16"
+    negotiator "0.6.1"
+
+after@0.8.2:
+  version "0.8.2"
+  resolved "https://registry.npmjs.org/after/-/after-0.8.2.tgz"
+  integrity sha512-QbJ0NTQ/I9DI3uSJA4cbexiwQeRAfjPScqIbSjUDd9TOrcg6pREkUDdrziesOqxBMBzit8vFCTwrP27t13vFOORRA==
+
+agent-base@5:
+  version "5.1.1"
+  resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-5.1.1.tgz#e8fb3f242959db44d63be665db7a8e739537a32c"
+  integrity sha512-TMeqbNl2fMW0nMjTEPOwe3J/PRFP4vqeuVzHu/SmDh0TOsDm5XxKqdvAkZ1tGyxukI8e0O
+  integrity sha512-4t07p5aNtkpqrawin94hZXexaharIJVVFMDcgdwpq42I5yJGewmdF3kkqyxZ3hEJ7uvUKqL1DYxy3KhFXstuDgrL5H4UhYCEDw3uuBHAWXeSA==
+
+ammo@3.x.x:
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/ammo/-/ammo-3.0.3.tgz#502aafa9d8bfca264143e226eff2f322716e746b0c"
+  integrity sha512-vo76VJ44MkUBZL/BzpGXaKzMfroF4ZR6+haRuw9p+eSWfoNaH2AxVc8xmiEPC08jhzJSeM6w7/iMUGet8b4oBQ==
+  dependencies:
+    hoek "6.x.x"
+
+ansi-regex@^2.0.0:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/ansi-regex/-/ansi-regex-2.1.1.tgz#c3b33ab5ee360d86e0e628f0468ae7ef27d654df"
+  integrity sha512-TIGnTpdo+E3+pCyAluZvtED5p5wCqLdezCyhPZ4hMcXUbS+f+WSE7OONCKgeZTF3+y5nzzfOOS/Bdcanm1MYA==
+
+ansi-regex@^5.0.1:
+  version "5.0.1"
+  resolved "https://registry.npmjs.org/ansi-regex/-/ansi-regex-5.0.1.tgz"
+  integrity sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhjo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==
+
+ansi-regex@^6.2.2:
+  version "6.2.2"
+  resolved "https://registry.yarnpkg.com/ansi-regex/-/ansi-regex-6.2.2.tgz#60216eea464d864597ce2832000738a0589650c1"
+  integrity sha512-Bq3SmSpyFHaWjPk8If9yc6svM8c56dB5BAtW4Qbw5jHTwwXXcTLoRMkpDJp6VL0XZZJMlMWvM9OJjY3yLwLFf9k0fAgY="
+  dependencies:
+    es-errors "^1.3.0"
+
+ansi-styles@^4.0.0, ansi-styles@^4.1.0:
+  version "4.3.0"
+  resolved "https://registry.yarnpkg.com/ansi-styles/-/ansi-styles-4.3.0.tgz"
+  integrity sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZW'dfa}}-...'
+
+ansi-styles@^6.1.0:
+  version "6.2.3"
+  resolved "https://registry.yarnpkg.com/ansi-styles/-/ansi-styles-6.2.3.tgz#c044d5dcc521a07b3e010e3f7986"
+
+appmetrics-dash@^5.3.0:
+  version "5.3.0"
+  resolved "https://registry.yarnpkg.com/appmetrics-dash/-/appmetrics-dash-5.3.0.tgz#e92f6ef89964416bafdbdc6e3edfcec8e5e33a73"
+  integrity sha512-vc04tJyM1LLok4wkV7Vi2Ze7p2---...'
+
+appmetrics@^5.0.0:
+  version "5.1.1"
+  resolved "https://registry.yarnpkg.com/appmetrics/-/appmetrics-5.1.1.tgz#ae742ca33eb807d87156d4c508b0474b5be40e88"
+  integrity sha512-6TkvudkSpJ8VC6tNgYQvu+Xk5t1lc6oZJBGPU0fg...'
+
+... (Continue with the rest of the entries in the same format)
