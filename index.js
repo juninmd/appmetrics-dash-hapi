@@ -33,6 +33,13 @@ var save = {
 };
 
 let profiling_enabled = false;
+var nodereport;
+
+try {
+    nodereport = require('node-report');
+} catch (e) {
+    nodereport = null;
+}
 
 // Rate limiting state for socket connections
 const connectionAttempts = new Map();
@@ -146,7 +153,7 @@ function monitor(options) {
 
     let server = options.server;
 
-    var appmetrics = require('appmetrics');
+    var appmetrics = options.appmetrics || require('appmetrics');
     var monitoring = appmetrics.monitor();
 
     const socketioOpts = {};
@@ -159,7 +166,7 @@ function monitor(options) {
             socketioOpts.origins = corsOpts.origin;
         }
     }
-    io = require('socket.io')(server.listener, socketioOpts);
+    io = options.socketIo ? options.socketIo(server.listener, socketioOpts) : require('socket.io')(server.listener, socketioOpts);
 
     // Add security headers
     addSecurityHeaders(server);
