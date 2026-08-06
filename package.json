@@ -1,15 +1,33 @@
 {
   "name": "appmetrics-dash-hapi",
   "version": "1.0.5",
+  "description": "Adaptation of appmetrics-dash for Hapi.js - provides a dashboard for monitoring Node.js application metrics",
   "main": "index.js",
-  "files": [
-    "index.js",
-    "README.md"
+  "license": "Apache-2.0",
+  "author": "IBM Node.js Team",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/juninmd/appmetrics-dash-hapi"
+  },
+  "bugs": {
+    "url": "https://github.com/juninmd/appmetrics-dash-hapi/issues"
+  },
+  "homepage": "https://github.com/juninmd/appmetrics-dash-hapi",
+  "keywords": [
+    "appmetrics",
+    "hapi",
+    "dashboard",
+    "monitoring",
+    "metrics"
   ],
   "dependencies": {
-    "appmetrics-dash": "^3.4.0",
-    "hapi": "16.0.0",
-    "inert": "4.2.1"
+    "appmetrics": "^3.1.0",
+    "appmetrics-dash": "^5.3.0",
+    "debug": "^2.6.0",
+    "hapi": "18.1.0",
+    "inert": "5.1.3",
+    "node-report": "^2.1.0",
+    "socket.io": "^2.0.3"
   },
   "devDependencies": {
     "chai": "^4.3.7",
@@ -34,9 +52,9 @@
     "prepack": "yarn test:coverage",
     "audit": "yarn audit --level high"
   },
-  "author": "",
-  "license": "ISC",
-  "description": "Adaptation of appmetrics-dash for Hapi",
+  "engines": {
+    "node": ">=8.0.0"
+  },
   "nyc": {
     "all": true,
     "include": [
