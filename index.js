@@ -37,6 +37,30 @@ var save = {
 let profiling_enabled = false;
 let nodereport;
 
+// Rate limiting state for socket connections
+const connectionAttempts = new Map();
+const CONNECTION_RATE_LIMIT = 20;
+const CONNECTION_WINDOW_MS = 60000;
+
+// Periodically clean up expired rate limit records to prevent memory leaks
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of connectionAttempts.entries()) {
+        if (now - record.windowStart > CONNECTION_WINDOW_MS) {
+            connectionAttempts.delete(ip);
+        }
+    }
+}, CONNECTION_WINDOW_MS).unref();
+
+// Known safe socket event names (allowlist)
+const ALLOWED_SOCKET_EVENTS = new Set([
+    'connected',
+    'enableprofiling',
+    'disableprofiling',
+    'nodereport',
+    'heapdump'
+]);
+
 function patch(listener) {
     listener.__dashboard_patched = true;
 }
@@ -513,7 +537,7 @@ module.exports.CONNECTION_WINDOW_MS = CONNECTION_WINDOW_MS;
 function buildCorsOptions(userCors) {
     var defaults = {
         origin: '*',
-        methods: ['GET', 'POST'],
+        methods: ['GET', 'POST']
     };
     if (!userCors || typeof userCors !== 'object') return defaults;
     var result = {};
@@ -545,7 +569,7 @@ function getSecurityHeaders() {
     return {
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
-        'X-XSS-Protection': '1; mode=block',
+        'X-XSS-Protection': '1; mode=block'
     };
 }
 
