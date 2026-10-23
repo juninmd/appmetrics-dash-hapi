@@ -163,11 +163,11 @@ function monitor(options) {
 
     io.on('connection', function (socket) {
         // Rate limit check
-        const clientIp = socket.handshake.address || socket.request.connection.remoteAddress || 'unknown';
+        const clientIp = (socket.handshake && socket.handshake.address) || (socket.request && socket.request.connection && socket.request.connection.remoteAddress) || '127.0.0.1';
         if (isRateLimited(clientIp)) {
             debug('Rate limit exceeded for %s', clientIp);
             socket.emit('error', 'Rate limit exceeded. Please try again later.');
-            socket.disconnect(true);
+            if (typeof socket.disconnect === 'function') socket.disconnect(true);
             return;
         }
 
@@ -265,14 +265,16 @@ function monitor(options) {
 
         // Validate unknown events from clients
         const originalOnevent = socket.onevent;
-        socket.onevent = function (packet) {
-            const args = packet.data || [];
-            if (args.length > 0 && !ALLOWED_SOCKET_EVENTS.has(args[0])) {
-                debug('Blocked unknown socket event: %s', args[0]);
-                return;
-            }
-            originalOnevent.call(this, packet);
-        };
+        if (typeof originalOnevent === 'function') {
+            socket.onevent = function (packet) {
+                const args = packet.data || [];
+                if (args.length > 0 && !ALLOWED_SOCKET_EVENTS.has(args[0])) {
+                    debug('Blocked unknown socket event: %s', args[0]);
+                    return;
+                }
+                originalOnevent.call(this, packet);
+            };
+        }
     });
 
     /*
