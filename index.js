@@ -99,6 +99,7 @@ function sanitizeError(err) {
 }
 
 function addSecurityHeaders(server) {
+    if (!server || typeof server.ext !== 'function') return;
     server.ext('onPreResponse', function (request, reply) {
         const response = request.response;
         if (response && response.isBoom) {
@@ -516,7 +517,7 @@ module.exports.monitor = function (options) {
     }
     options.server.register(Inert, function (error) {
         if (error) {
-            debug('Failed to register Inert: %s', sanitizeError(error));
+            console.log(error);
             return;
         }
         try {
