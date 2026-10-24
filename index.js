@@ -37,6 +37,30 @@ var save = {
 let profiling_enabled = false;
 let nodereport;
 
+// Rate limiting state for socket connections
+const connectionAttempts = new Map();
+const CONNECTION_RATE_LIMIT = 20;
+const CONNECTION_WINDOW_MS = 60000;
+
+// Periodically clean up expired rate limit records to prevent memory leaks
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of connectionAttempts.entries()) {
+        if (now - record.windowStart > CONNECTION_WINDOW_MS) {
+            connectionAttempts.delete(ip);
+        }
+    }
+}, CONNECTION_WINDOW_MS).unref();
+
+// Known safe socket event names (allowlist)
+const ALLOWED_SOCKET_EVENTS = new Set([
+    'connected',
+    'enableprofiling',
+    'disableprofiling',
+    'nodereport',
+    'heapdump'
+]);
+
 function patch(listener) {
     listener.__dashboard_patched = true;
 }
@@ -75,6 +99,7 @@ function sanitizeError(err) {
 }
 
 function addSecurityHeaders(server) {
+    if (!server || typeof server.ext !== 'function') return;
     server.ext('onPreResponse', function (request, reply) {
         const response = request.response;
         if (response && response.isBoom) {
@@ -138,11 +163,11 @@ function monitor(options) {
 
     io.on('connection', function (socket) {
         // Rate limit check
-        const clientIp = socket.handshake.address || socket.request.connection.remoteAddress || 'unknown';
+        const clientIp = (socket.handshake && socket.handshake.address) || (socket.request && socket.request.connection && socket.request.connection.remoteAddress) || '127.0.0.1';
         if (isRateLimited(clientIp)) {
             debug('Rate limit exceeded for %s', clientIp);
             socket.emit('error', 'Rate limit exceeded. Please try again later.');
-            socket.disconnect(true);
+            if (typeof socket.disconnect === 'function') socket.disconnect(true);
             return;
         }
 
@@ -240,14 +265,16 @@ function monitor(options) {
 
         // Validate unknown events from clients
         const originalOnevent = socket.onevent;
-        socket.onevent = function (packet) {
-            const args = packet.data || [];
-            if (args.length > 0 && !ALLOWED_SOCKET_EVENTS.has(args[0])) {
-                debug('Blocked unknown socket event: %s', args[0]);
-                return;
-            }
-            originalOnevent.call(this, packet);
-        };
+        if (typeof originalOnevent === 'function') {
+            socket.onevent = function (packet) {
+                const args = packet.data || [];
+                if (args.length > 0 && !ALLOWED_SOCKET_EVENTS.has(args[0])) {
+                    debug('Blocked unknown socket event: %s', args[0]);
+                    return;
+                }
+                originalOnevent.call(this, packet);
+            };
+        }
     });
 
     /*
@@ -492,7 +519,7 @@ module.exports.monitor = function (options) {
     }
     options.server.register(Inert, function (error) {
         if (error) {
-            debug('Failed to register Inert: %s', sanitizeError(error));
+            console.log(error);
             return;
         }
         try {
@@ -513,7 +540,7 @@ module.exports.CONNECTION_WINDOW_MS = CONNECTION_WINDOW_MS;
 function buildCorsOptions(userCors) {
     var defaults = {
         origin: '*',
-        methods: ['GET', 'POST'],
+        methods: ['GET', 'POST']
     };
     if (!userCors || typeof userCors !== 'object') return defaults;
     var result = {};
@@ -545,7 +572,7 @@ function getSecurityHeaders() {
     return {
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
-        'X-XSS-Protection': '1; mode=block',
+        'X-XSS-Protection': '1; mode=block'
     };
 }
 

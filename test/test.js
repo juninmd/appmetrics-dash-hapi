@@ -134,7 +134,7 @@ describe('Security - CORS configuration', function () {
     const opts = buildCorsOptions();
     expect(opts).to.deep.equal({
       origin: '*',
-      methods: ['GET', 'POST'],
+      methods: ['GET', 'POST']
     });
   });
 
