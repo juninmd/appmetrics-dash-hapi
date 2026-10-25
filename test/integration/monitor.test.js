@@ -51,18 +51,29 @@ describe('Monitor Integration', function () {
         sinon.restore();
     });
 
+    // monitor() resolve appmetrics/socket.io em tempo de execucao, entao o
+    // proxyquire nao intercepta esses requires: injeta os mocks explicitamente.
+    function monitorServer(options) {
+        mod.monitor(
+            Object.assign(
+                { appmetrics: mockAppmetrics, socketIo: mockSocketIo },
+                options
+            )
+        );
+    }
+
     it('should export monitor function', function () {
         expect(mod).to.have.property('monitor');
         expect(mod.monitor).to.be.a('function');
     });
 
     it('should call server.register when monitor is invoked', function () {
-        mod.monitor({ server: mockServer });
+        monitorServer({ server: mockServer });
         expect(mockServer.register.calledOnce).to.be.true;
     });
 
     it('should initialize socket.io after plugin registration', function () {
-        mod.monitor({ server: mockServer });
+        monitorServer({ server: mockServer });
         expect(mockSocketIo.calledOnce).to.be.true;
         expect(mockSocketIo.firstCall.args[0]).to.equal(mockListener);
     });
@@ -75,18 +86,18 @@ describe('Monitor Integration', function () {
         mockServer.register = sinon.stub().callsFake(function (p, cb) {
             cb(new Error('Plugin not found'));
         });
-        mod.monitor({ server: mockServer });
+        monitorServer({ server: mockServer });
 
         expect(loggedMsg.message).to.equal('Plugin not found');
         console.log = origLog;
     });
 
     it('should accept monitor with minimal options', function () {
-        mod.monitor({ server: mockServer });
+        monitorServer({ server: mockServer });
     });
 
     it('should accept monitor with all custom options', function () {
-        mod.monitor({
+        monitorServer({
             server: mockServer,
             url: '/custom/{param*}',
             title: 'My Metrics',
@@ -95,12 +106,12 @@ describe('Monitor Integration', function () {
     });
 
     it('should set up default route when no url specified', function () {
-        mod.monitor({ server: mockServer });
+        monitorServer({ server: mockServer });
         expect(mockServer.route.firstCall.args[0].path).to.equal('/appmetrics-dash/{param*}');
     });
 
     it('should set up custom route when url specified', function () {
-        mod.monitor({ server: mockServer, url: '/custom/{param*}' });
+        monitorServer({ server: mockServer, url: '/custom/{param*}' });
         expect(mockServer.route.firstCall.args[0].path).to.equal('/custom/{param*}');
     });
 
@@ -111,8 +122,8 @@ describe('Monitor Integration', function () {
             listener: { on: sinon.stub() }
         };
 
-        mod.monitor({ server: mockServer });
-        mod.monitor({ server: mockServer2 });
+        monitorServer({ server: mockServer });
+        monitorServer({ server: mockServer2 });
 
         expect(mockServer.route.calledOnce).to.be.true;
         expect(mockServer2.route.calledOnce).to.be.true;

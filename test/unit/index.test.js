@@ -27,6 +27,27 @@ describe('appmetrics-dash-hapi', function () {
         });
     }
 
+    // O proxyquire so substitui requires feitos no carregamento do modulo. Como
+    // monitor() faz `require('appmetrics')` em tempo de execucao, os mocks precisam
+    // ser injetados explicitamente para o teste nao depender do modulo nativo.
+    function monitorServer(options) {
+        mod.monitor(
+            Object.assign(
+                { appmetrics: mockAppmetrics, socketIo: mockSocketIo },
+                options
+            )
+        );
+    }
+
+    // O primeiro setInterval registrado pelo modulo e o GC da rate limit; o
+    // callback que agrega e emite os dados e o de emitInterval (2000ms).
+    function runEmitInterval() {
+        const emitCall = setIntervalStub.args.find(function (args) {
+            return args[1] === 2000;
+        });
+        emitCall[0]();
+    }
+
     beforeEach(function () {
         connectionCb = null;
         socketEmitSpy = sinon.spy();
@@ -81,13 +102,13 @@ describe('appmetrics-dash-hapi', function () {
         });
 
         it('should register Inert plugin via server.register', function () {
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
             expect(mockServer.register.calledOnce).to.be.true;
             expect(mockServer.register.firstCall.args[0]).to.deep.equal(mockInert);
         });
 
         it('should set up default route for appmetrics-dash', function () {
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
             expect(mockServer.route.calledOnce).to.be.true;
             const route = mockServer.route.firstCall.args[0];
             expect(route.method).to.equal('GET');
@@ -95,30 +116,30 @@ describe('appmetrics-dash-hapi', function () {
         });
 
         it('should use custom URL when provided', function () {
-            mod.monitor({ server: mockServer, url: '/custom/{param*}' });
+            monitorServer({ server: mockServer, url: '/custom/{param*}' });
             expect(mockServer.route.firstCall.args[0].path).to.equal('/custom/{param*}');
         });
 
         it('should create socket.io connection with server listener', function () {
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
             expect(mockSocketIo.calledOnce).to.be.true;
             expect(mockSocketIo.firstCall.args[0]).to.equal(mockListener);
         });
 
         it('should start appmetrics monitoring', function () {
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
             expect(mockAppmetrics.monitor.calledOnce).to.be.true;
         });
 
         it('should listen for newListener events on the server listener', function () {
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
             expect(mockListener.on.calledWith('newListener')).to.be.true;
         });
     });
 
     describe('socket.io connection handling', function () {
         beforeEach(function () {
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
         });
 
         it('should respond with environment data on socket connection', function () {
@@ -131,7 +152,7 @@ describe('appmetrics-dash-hapi', function () {
             };
             mockMonitoring.getEnvironment.returns(envData);
             mod = buildMod();
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
 
             const mockSocket = { emit: socketEmitSpy, on: sinon.stub() };
             connectionCb(mockSocket);
@@ -155,7 +176,7 @@ describe('appmetrics-dash-hapi', function () {
 
         it('should use custom title and docs when provided', function () {
             mod = buildMod();
-            mod.monitor({ server: mockServer, title: 'My Metrics', docs: 'https://docs.com' });
+            monitorServer({ server: mockServer, title: 'My Metrics', docs: 'https://docs.com' });
 
             const mockSocket = { emit: socketEmitSpy, on: sinon.stub() };
             connectionCb(mockSocket);
@@ -221,7 +242,7 @@ describe('appmetrics-dash-hapi', function () {
                 cb(null, 'heap-12345.heapsnapshot');
             });
             mod = buildMod();
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
 
             const mockSocket = { emit: socketEmitSpy, on: sinon.stub() };
             connectionCb(mockSocket);
@@ -247,7 +268,7 @@ describe('appmetrics-dash-hapi', function () {
         it('should handle nodereport when module available', function () {
             mockMonitoring.getNodeReport = sinon.stub().returns({ getReport: sinon.stub().returns({ hello: 'world' }) });
             mod = buildMod();
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
 
             const mockSocket = { emit: socketEmitSpy, on: sinon.stub() };
             connectionCb(mockSocket);
@@ -262,7 +283,7 @@ describe('appmetrics-dash-hapi', function () {
 
     describe('monitoring event handlers', function () {
         beforeEach(function () {
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
         });
 
         it('should register all monitoring event types', function () {
@@ -281,7 +302,7 @@ describe('appmetrics-dash-hapi', function () {
             const httpHandler = mockMonitoring.on.args.find(a => a[0] === 'http')[1];
             httpHandler({ duration: 100, url: '/test', time: Date.now() });
             httpHandler({ duration: 200, url: '/test', time: Date.now() + 100 });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
 
             const httpData = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'http')[1]);
             expect(httpData.total).to.equal(2);
@@ -292,7 +313,7 @@ describe('appmetrics-dash-hapi', function () {
         it('should aggregate HTTPS events', function () {
             const handler = mockMonitoring.on.args.find(a => a[0] === 'https')[1];
             handler({ duration: 50, url: '/secure', time: Date.now() });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
             expect(ioEmitSpy.calledWith('https')).to.be.true;
         });
 
@@ -300,7 +321,7 @@ describe('appmetrics-dash-hapi', function () {
             const handler = mockMonitoring.on.args.find(a => a[0] === 'https')[1];
             handler({ duration: 50, url: '/secure', time: 1 });
             handler({ duration: 150, url: '/secure2', time: 2 });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
             const data = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'https')[1]);
             expect(data.total).to.equal(2);
             expect(data.longest).to.equal(150);
@@ -310,7 +331,7 @@ describe('appmetrics-dash-hapi', function () {
             const handler = mockMonitoring.on.args.find(a => a[0] === 'https')[1];
             handler({ duration: 50, url: '/secure', time: Date.now() });
             handler({ duration: 100, url: '/secure', time: Date.now() + 100 });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
             const urlsData = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'http-urls')[1]);
             const secureUrl = urlsData.find(function (u) { return u.url === '/secure'; });
             expect(secureUrl.hits).to.equal(2);
@@ -320,7 +341,7 @@ describe('appmetrics-dash-hapi', function () {
         it('should aggregate http-outbound events', function () {
             const handler = mockMonitoring.on.args.find(a => a[0] === 'http-outbound')[1];
             handler({ duration: 30, url: 'http://ex.com', time: Date.now() });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
             expect(ioEmitSpy.calledWith('http-outbound')).to.be.true;
         });
 
@@ -328,7 +349,7 @@ describe('appmetrics-dash-hapi', function () {
             const handler = mockMonitoring.on.args.find(a => a[0] === 'http-outbound')[1];
             handler({ duration: 30, url: 'http://ex.com', time: 1 });
             handler({ duration: 50, url: 'http://ex2.com', time: 2 });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
             const data = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'http-outbound')[1]);
             expect(data.total).to.equal(2);
             expect(data.longest).to.equal(50);
@@ -337,7 +358,7 @@ describe('appmetrics-dash-hapi', function () {
         it('should aggregate https-outbound events', function () {
             const handler = mockMonitoring.on.args.find(a => a[0] === 'https-outbound')[1];
             handler({ duration: 40, url: 'https://ex.com', time: Date.now() });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
             expect(ioEmitSpy.calledWith('https-outbound')).to.be.true;
         });
 
@@ -345,7 +366,7 @@ describe('appmetrics-dash-hapi', function () {
             const handler = mockMonitoring.on.args.find(a => a[0] === 'https-outbound')[1];
             handler({ duration: 40, url: 'https://ex.com', time: 1 });
             handler({ duration: 60, url: 'https://ex2.com', time: 2 });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
             const data = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'https-outbound')[1]);
             expect(data.total).to.equal(2);
             expect(data.longest).to.equal(60);
@@ -355,7 +376,7 @@ describe('appmetrics-dash-hapi', function () {
             const handler = mockMonitoring.on.args.find(a => a[0] === 'cpu')[1];
             handler({ process: 0.5, system: 0.3 });
             handler({ process: 0.7, system: 0.4 });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
 
             const cpuData = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'cpu')[1]);
             expect(cpuData.processMean).to.equal(0.6);
@@ -365,7 +386,7 @@ describe('appmetrics-dash-hapi', function () {
         it('should track memory data', function () {
             const handler = mockMonitoring.on.args.find(a => a[0] === 'memory')[1];
             handler({ used: 500, total: 1000 });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
             const data = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'memory')[1]);
             expect(data.used).to.equal(500);
         });
@@ -373,11 +394,11 @@ describe('appmetrics-dash-hapi', function () {
         it('should track GC data with time summary', function () {
             sinon.stub(process, 'uptime').returns(10);
             mod = buildMod();
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
 
             const handler = mockMonitoring.on.args.find(a => a[0] === 'gc')[1];
             handler({ duration: 50, used: 800 });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
 
             const gcData = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'gc')[1]);
             expect(gcData.duration).to.equal(50);
@@ -393,7 +414,7 @@ describe('appmetrics-dash-hapi', function () {
         it('should emit loop data', function () {
             const handler = mockMonitoring.on.args.find(a => a[0] === 'loop')[1];
             handler({ latency: 5 });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
             expect(ioEmitSpy.calledWith('loop')).to.be.true;
         });
 
@@ -402,7 +423,7 @@ describe('appmetrics-dash-hapi', function () {
             mongoHandler({ duration: 10, time: Date.now() });
             const expressHandler = mockMonitoring.on.args.find(a => a[0] === 'express')[1];
             expressHandler({ duration: 20, time: Date.now() });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
 
             const probes = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'probe-events')[1]);
             expect(probes).to.have.length(2);
@@ -423,7 +444,7 @@ describe('appmetrics-dash-hapi', function () {
                 const handler = mockMonitoring.on.args.find(a => a[0] === key)[1];
                 handler({ duration: 5, time: Date.now() });
             });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
 
             const probes = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'probe-events')[1]);
             expect(probes).to.have.length(Object.keys(events).length);
@@ -433,7 +454,7 @@ describe('appmetrics-dash-hapi', function () {
             const mongoHandler = mockMonitoring.on.args.find(a => a[0] === 'mongo')[1];
             mongoHandler({ duration: 10, time: Date.now() });
             mongoHandler({ duration: 30, time: Date.now() });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
 
             const probes = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'probe-events')[1]);
             expect(probes).to.have.length(1);
@@ -444,7 +465,7 @@ describe('appmetrics-dash-hapi', function () {
             const httpHandler = mockMonitoring.on.args.find(a => a[0] === 'http')[1];
             httpHandler({ duration: 100, url: '/a', time: Date.now() });
             httpHandler({ duration: 200, url: '/b', time: Date.now() });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
             expect(ioEmitSpy.calledWith('http-urls')).to.be.true;
         });
 
@@ -452,7 +473,7 @@ describe('appmetrics-dash-hapi', function () {
             const httpHandler = mockMonitoring.on.args.find(a => a[0] === 'http')[1];
             httpHandler({ duration: 100, url: '/popular', time: Date.now() });
             httpHandler({ duration: 200, url: '/popular', time: Date.now() + 100 });
-            setIntervalStub.firstCall.args[0]();
+            runEmitInterval();
             const urlsData = JSON.parse(ioEmitSpy.args.find(a => a[0] === 'http-urls')[1]);
             const popular = urlsData.find(function (u) { return u.url === '/popular'; });
             expect(popular.hits).to.equal(2);
@@ -469,7 +490,7 @@ describe('appmetrics-dash-hapi', function () {
             mockServer.register = sinon.stub().callsFake(function (p, cb) {
                 cb(new Error('Plugin not found'));
             });
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
 
             expect(loggedMsg.message).to.equal('Plugin not found');
             expect(mockSocketIo.called).to.be.false;
@@ -483,7 +504,7 @@ describe('appmetrics-dash-hapi', function () {
         var handlers;
 
         beforeEach(function () {
-            mod.monitor({ server: mockServer });
+            monitorServer({ server: mockServer });
             handlers = mockListener.on.args.filter(function (a) { return a[0] === 'newListener'; }).map(function (a) { return a[1]; });
         });
 

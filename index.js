@@ -1,7 +1,6 @@
 'use strict';
 
 const debug = require('debug')('appmetrics-dash');
-const util = require('util');
 const Inert = require('inert');
 const path = require('path');
 
