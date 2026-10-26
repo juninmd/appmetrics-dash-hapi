@@ -1,4 +1,3 @@
-```markdown
 # AGENTS.md File Guidelines
 
 These guidelines are designed to ensure consistent, maintainable, and high-quality development for all AI coding agents within this repository. Adherence to these principles is crucial for building a robust and scalable system.
@@ -71,7 +70,6 @@ These guidelines are designed to ensure consistent, maintainable, and high-quali
 *   **Error Analysis:**  Implement robust error analysis to identify and address potential issues.
 
 These guidelines are intended to promote collaboration and maintain a high standard of quality across the entire AGENTS.  Continuous improvement and refinement of these practices are encouraged.
-```
 
 <!-- base-actions-main-policy -->
 ## GitHub Actions — padrão obrigatório (@main)

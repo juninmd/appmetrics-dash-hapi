@@ -114,6 +114,22 @@ describe('appmetrics-dash-hapi', () => {
         expect(routeStub.firstCall.args[0].path).to.equal('/appmetrics-dash/{param*}');
     });
 
+    it('should serve the appmetrics-dash public directory without listing', () => {
+        registerStub.callsArgWith(1, null);
+        const { appmetrics } = createMockAppmetrics();
+
+        moduleExports.monitor({
+            server: serverStub,
+            appmetrics: appmetrics,
+            socketIo: socketIoFunc
+        });
+
+        const handler = routeStub.firstCall.args[0].handler.directory;
+        expect(handler.path).to.equal(require('path').join(require('path').dirname(require.resolve('appmetrics-dash/package.json')), 'public'));
+        expect(require('fs').existsSync(require('path').join(handler.path, 'index.html'))).to.be.true;
+        expect(handler.listing).to.be.false;
+    });
+
     it('should use custom url option for route', () => {
         registerStub.callsArgWith(1, null);
         const { appmetrics } = createMockAppmetrics();
