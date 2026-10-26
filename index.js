@@ -123,7 +123,7 @@ function monitor(options) {
         throw new Error('Server instance is required');
     }
 
-    const directory = process.env.DASH_DEV_X ? __dirname + '\\node_modules\\appmetrics-dash\\public' : path.resolve(__dirname, '..') + '\\appmetrics-dash\\public';
+    const directory = path.join(path.dirname(require.resolve('appmetrics-dash/package.json')), 'public');
 
     var url = sanitizeUrlPath(options.url || '/appmetrics-dash/{param*}');
 
@@ -133,7 +133,7 @@ function monitor(options) {
         handler: {
             directory: {
                 path: directory,
-                listing: true
+                listing: false
             }
         }
     });
