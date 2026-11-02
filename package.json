@@ -21,7 +21,7 @@
     "metrics"
   ],
   "dependencies": {
-    "appmetrics": "^3.1.0",
+    "appmetrics": "^5.1.1",
     "appmetrics-dash": "^5.3.0",
     "debug": "^4.4.3",
     "hapi": "18.1.0",
