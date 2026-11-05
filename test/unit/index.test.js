@@ -22,8 +22,8 @@ describe('appmetrics-dash-hapi', function () {
         return proxyquire('../../index', {
             'socket.io': mockSocketIo,
             inert: mockInert,
-            appmetrics: mockAppmetrics,
-            'appmetrics-dash': {}
+            appmetrics: Object.assign({ '@noCallThru': true }, mockAppmetrics),
+            'appmetrics-dash': { '@noCallThru': true }
         });
     }
 
