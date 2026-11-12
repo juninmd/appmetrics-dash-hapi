@@ -47,7 +47,7 @@
     "format:check": "prettier --check '**/*.js' '**/*.json' '**/*.md'",
     "test": "mocha 'test/**/*.test.js' --timeout 10000",
     "test:coverage": "nyc --reporter=lcov --reporter=text --reporter=text-summary mocha 'test/**/*.test.js' --timeout 10000",
-    "pretest": "yarn lint",
+    "pretest": "pnpm run lint",
     "build": "echo 'No build step required'",
     "prepack": "yarn test:coverage",
     "audit": "yarn audit --level high"
