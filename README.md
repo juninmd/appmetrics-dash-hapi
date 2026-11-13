@@ -1,5 +1,9 @@
 # appmetrics-dash-hapi
 
+<p align="center">
+  <img src="docs/readme/hero.png" alt="Illustrative banner for appmetrics-dash-hapi (mockup with fictitious data)" width="100%">
+</p>
+
 **Hapi.js adapter for [`appmetrics-dash`](https://github.com/RuntimeTools/appmetrics-dash), built to serve the live Node.js metrics dashboard from inside an existing Hapi server.**
 
 The adapter is meant to register the dashboard's static assets, open a Socket.IO channel on the server's listener, and stream CPU, memory, GC, event-loop, HTTP and probe metrics to the browser.
@@ -132,6 +136,24 @@ CI installs with `yarn`, while the repository also commits a `pnpm-lock.yaml` an
 | `dependabot-auto-merge.yml` | `pull_request_target` | Auto-merge for Dependabot PRs when all checks pass |
 
 `ci.yml` does not trigger on `master`, which is the repository's default branch; neither the CI jobs nor the `npm publish` step run there. Only `validate.yml` covers pushes to `master`.
+
+## Screenshots
+
+> [!NOTE]
+> **Illustrative mockups.** The screens below were rendered from HTML with fictitious data (Playwright). They are not captures of a real installation.
+
+<p align="center">
+  <img src="docs/readme/dashboard.png" alt="Live Node.js metrics — illustrative mockup with fictitious data" width="100%">
+  <br>
+  <sub>Live Node.js metrics — fictitious data.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/readme/register.png" alt="Register the dashboard — illustrative mockup with fictitious data" width="100%">
+  <br>
+  <sub>Register the dashboard — fictitious data.</sub>
+</p>
+
 
 ## Limitations
 
