@@ -112,30 +112,28 @@ The module also exports helpers: `sanitizeUrlPath`, `sanitizeError`, `isRateLimi
 ## Development
 
 ```sh
-yarn install
-yarn lint             # eslint index.js test/
-yarn format:check     # prettier --check '**/*.js' '**/*.json' '**/*.md'
-yarn test             # pretest = lint, then mocha 'test/**/*.test.js' --timeout 10000
-yarn test:coverage    # nyc with 80% branch/line/function/statement gate on index.js
-yarn build            # no-op: echo 'No build step required'
+pnpm install
+pnpm lint             # eslint index.js test/
+pnpm format:check     # prettier --check '**/*.js' '**/*.json' '**/*.md'
+pnpm test             # pretest = lint, then mocha 'test/**/*.test.js' --timeout 10000
+pnpm test:coverage    # nyc with 80% branch/line/function/statement gate on index.js
+pnpm build            # no-op: echo 'No build step required'
 ```
 
-CI installs with `yarn`, while the repository also commits a `pnpm-lock.yaml` and declares `packageManager: pnpm@10.34.5`. The coverage gate applies to `index.js` only (`test/`, `example/` and `coverage/` are excluded).
-
-`test/test.js` contains the security-helper tests, but the Mocha glob is `test/**/*.test.js`; a file named `test/test.js` does not match that pattern and is not executed by `yarn test`.
+CI installs with `pnpm` (the repository commits `pnpm-lock.yaml` and declares `packageManager: pnpm@10.34.5`). The coverage gate applies to `index.js` only (`test/`, `example/` and `coverage/` are excluded). `pnpm format:check` currently fails on 11 pre-existing files, so CI reports it without blocking.
 
 ## Tests and CI
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push on `main`/`develop`, PR on `main` | Lint, Prettier check, non-blocking `yarn audit`; tests on Node 16/18/20 with Codecov; Snyk scan (non-blocking); `yarn build` plus artifact upload; `npm publish` on a push to `main` using `NPM_TOKEN` |
+| `ci.yml` | push on `master`/`develop`, PR on `master` | Lint, non-blocking Prettier check and `pnpm audit`; tests with coverage gate on Node 20/22 with Codecov; Snyk scan (non-blocking); `pnpm build` plus artifact upload; `npm publish` only on a push to a `main` branch (never reached on `master`, so nothing is published automatically) |
 | `validate.yml` | PR, push on `master` | Shared validation from `juninmd/base-actions` with `node-version: '18'` |
-| `codeql.yml` | push on `main`/`develop`, PR on `main` | CodeQL for JavaScript |
+| `codeql.yml` | push on `master`/`develop`, PR on `master` | CodeQL for JavaScript |
 | `sast.yml` | push on `main`/`master`, manual | Shared SAST with `fail-semgrep: false` |
 | `security.yml` | push on `master`, weekly cron | Shared security scan |
 | `dependabot-auto-merge.yml` | `pull_request_target` | Auto-merge for Dependabot PRs when all checks pass |
 
-`ci.yml` does not trigger on `master`, which is the repository's default branch; neither the CI jobs nor the `npm publish` step run there. Only `validate.yml` covers pushes to `master`.
+The `deploy` job in `ci.yml` is guarded by `github.ref == 'refs/heads/main'`; the default branch is `master`, so publishing stays manual on purpose until the adapter is ported (see Compatibility).
 
 ## Screenshots
 

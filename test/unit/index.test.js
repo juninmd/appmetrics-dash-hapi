@@ -540,4 +540,90 @@ describe('appmetrics-dash-hapi', function () {
             });
         });
     });
+    describe('security wiring', function () {
+        function connect(socket) {
+            connectionCb(Object.assign({ emit: socketEmitSpy, on: sinon.stub() }, socket));
+        }
+
+        it('should add security headers to plain and Boom responses on onPreResponse', function () {
+            mockServer.ext = sinon.stub();
+            monitorServer({ server: mockServer });
+            const handler = mockServer.ext.firstCall.args[1];
+            const reply = { continue: sinon.stub().returns('continued') };
+
+            const boom = { isBoom: true, output: { headers: {} } };
+            expect(handler({ response: boom }, reply)).to.equal('continued');
+            expect(boom.output.headers['X-Frame-Options']).to.equal('DENY');
+
+            const plain = { headers: {} };
+            handler({ response: plain }, reply);
+            expect(plain.headers['X-Content-Type-Options']).to.equal('nosniff');
+
+            expect(handler({ response: null }, reply)).to.equal('continued');
+        });
+
+        it('should skip security headers when the server has no ext()', function () {
+            expect(function () { monitorServer({ server: mockServer }); }).to.not.throw();
+        });
+
+        it('should disconnect clients that exceed the connection rate limit', function () {
+            monitorServer({ server: mockServer });
+            const disconnect = sinon.stub();
+            const address = '203.0.113.7';
+            for (let i = 0; i < mod.CONNECTION_RATE_LIMIT; i++) {
+                connect({ handshake: { address } });
+            }
+            socketEmitSpy.resetHistory();
+            connect({ handshake: { address }, disconnect });
+
+            expect(socketEmitSpy.calledWith('error', sinon.match('Rate limit'))).to.be.true;
+            expect(disconnect.calledOnceWith(true)).to.be.true;
+        });
+
+        it('should fall back to the request connection address and then to localhost', function () {
+            monitorServer({ server: mockServer });
+            connect({ request: { connection: { remoteAddress: '198.51.100.9' } } });
+            connect({});
+            expect(socketEmitSpy.calledWith('environment')).to.be.true;
+        });
+
+        it('should drop socket events outside the allowlist and forward allowed ones', function () {
+            monitorServer({ server: mockServer });
+            const onevent = sinon.stub();
+            const socket = { emit: socketEmitSpy, on: sinon.stub(), onevent };
+            connectionCb(socket);
+
+            socket.onevent({ data: ['eval', 'x'] });
+            expect(onevent.called).to.be.false;
+
+            socket.onevent({ data: ['heapdump'] });
+            expect(onevent.calledOnce).to.be.true;
+
+            // a packet without data has no event name to block: it is passed through
+            socket.onevent({});
+            expect(onevent.calledTwice).to.be.true;
+        });
+
+        it('should report a generic error when the heapdump fails', function () {
+            mockAppmetrics.writeSnapshot.callsFake(function (cb) { cb(new Error('disk full /secret/path')); });
+            monitorServer({ server: mockServer });
+            const socket = { on: sinon.stub() };
+            connect(socket);
+            socket.on.args.find(a => a[0] === 'heapdump')[1]();
+
+            const emit = socketEmitSpy.args.find(a => a[0] === 'heapdump');
+            expect(emit[1]).to.deep.equal({ error: 'Failed to generate heapdump' });
+        });
+
+        it('should report a generic error when the node report fails', function () {
+            mockMonitoring.getNodeReport = sinon.stub().returns({ getReport: sinon.stub().throws(new Error('boom')) });
+            monitorServer({ server: mockServer });
+            const socket = { on: sinon.stub() };
+            connect(socket);
+            socket.on.args.find(a => a[0] === 'nodereport')[1]();
+
+            const emit = socketEmitSpy.args.find(a => a[0] === 'nodereport');
+            expect(emit[1]).to.deep.equal({ error: 'Failed to generate report' });
+        });
+    });
 });

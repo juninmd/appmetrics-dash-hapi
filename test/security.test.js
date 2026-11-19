@@ -54,6 +54,10 @@ describe('Security - Input Validation', function () {
       expect(sanitizeError(err)).to.equal('Something went wrong');
     });
 
+    it('should fall back to a generic message for an Error without message', function () {
+      expect(sanitizeError(new Error(''))).to.equal('Internal error');
+    });
+
     it('should not leak stack traces', function () {
       const err = new Error('Hidden');
       const result = sanitizeError(err);
@@ -84,12 +88,20 @@ describe('Security - Input Validation', function () {
     });
 
     it('should reset window after time passes', function () {
-      // This is an integration-level check; we rely on the window logic
-      const ip = '10.0.0.2';
-      for (let i = 0; i < 20; i++) {
-        isRateLimited(ip);
+      const { CONNECTION_WINDOW_MS } = require('../index');
+      const sinon = require('sinon');
+      const clock = sinon.useFakeTimers({ now: 1000, toFake: ['Date'] });
+      try {
+        const ip = '10.0.0.2';
+        for (let i = 0; i < 20; i++) {
+          isRateLimited(ip);
+        }
+        expect(isRateLimited(ip)).to.be.true;
+        clock.tick(CONNECTION_WINDOW_MS + 1);
+        expect(isRateLimited(ip)).to.be.false;
+      } finally {
+        clock.restore();
       }
-      expect(isRateLimited(ip)).to.be.true;
     });
   });
 
@@ -152,6 +164,22 @@ describe('Security - CORS configuration', function () {
   it('should not allow wildcard credentials', function () {
     const opts = buildCorsOptions({ origin: '*', credentials: true });
     expect(opts.origin).to.not.equal('*');
+  });
+
+  it('should not combine credentials with a wildcard when no origin is given', function () {
+    const opts = buildCorsOptions({ credentials: true });
+    expect(opts.origin).to.equal(false);
+    expect(opts.credentials).to.equal(true);
+  });
+
+  it('should keep credentials together with an explicit origin', function () {
+    const opts = buildCorsOptions({ origin: 'https://example.com', credentials: true });
+    expect(opts).to.deep.equal({ origin: 'https://example.com', credentials: true, methods: ['GET', 'POST'] });
+  });
+
+  it('should use user methods only when they are an array', function () {
+    expect(buildCorsOptions({ methods: ['GET'] }).methods).to.deep.equal(['GET']);
+    expect(buildCorsOptions({ methods: 'GET' }).methods).to.deep.equal(['GET', 'POST']);
   });
 });
 
