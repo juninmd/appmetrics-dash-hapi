@@ -16,6 +16,9 @@ var aggregateHttpsOutboundEvent;
 var aggregateProbeEvents = [];
 // Used for top 5 response times
 var httpURLData = {};
+// Cap on distinct URLs kept in httpURLData: URLs with ids or query strings would otherwise grow it
+// (and the payload emitted every interval) without bound
+const MAX_TRACKED_URLS = 500;
 // Interval between emitting data in milliseconds
 var emitInterval = 2000;
 // CPU summary data
@@ -325,17 +328,7 @@ function monitor(options) {
             }
         }
 
-        if (Object.prototype.hasOwnProperty.call(httpURLData, data.url)) {
-            var urlData = httpURLData[data.url];
-            // Recalculate the average
-            urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
-            urlData.hits = urlData.hits + 1;
-            if (data.duration > urlData.longest) {
-                urlData.longest = data.duration;
-            }
-        } else {
-            httpURLData[data.url] = { duration: data.duration, hits: 1, longest: data.duration };
-        }
+        trackUrl(data);
 
     });
 
@@ -356,17 +349,7 @@ function monitor(options) {
             }
         }
 
-        if (Object.prototype.hasOwnProperty.call(httpURLData, data.url)) {
-            var urlData = httpURLData[data.url];
-            // Recalculate the average
-            urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
-            urlData.hits = urlData.hits + 1;
-            if (data.duration > urlData.longest) {
-                urlData.longest = data.duration;
-            }
-        } else {
-            httpURLData[data.url] = { duration: data.duration, hits: 1, longest: data.duration };
-        }
+        trackUrl(data);
 
     });
 
@@ -440,6 +423,29 @@ function monitor(options) {
 
     setInterval(emitData, emitInterval).unref();
     return server;
+}
+
+function trackUrl(data) {
+    if (Object.prototype.hasOwnProperty.call(httpURLData, data.url)) {
+        var urlData = httpURLData[data.url];
+        // Recalculate the average
+        urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
+        urlData.hits = urlData.hits + 1;
+        if (data.duration > urlData.longest) {
+            urlData.longest = data.duration;
+        }
+        return;
+    }
+    var urls = Object.keys(httpURLData);
+    if (urls.length >= MAX_TRACKED_URLS) {
+        // Evict the least-hit URL so busy endpoints survive a flood of one-off URLs
+        var coldest = urls[0];
+        for (var i = 1; i < urls.length; i++) {
+            if (httpURLData[urls[i]].hits < httpURLData[coldest].hits) coldest = urls[i];
+        }
+        delete httpURLData[coldest];
+    }
+    httpURLData[data.url] = { duration: data.duration, hits: 1, longest: data.duration };
 }
 
 function addProbeEvent(probename, data) {
@@ -529,6 +535,7 @@ module.exports.monitor = function (options) {
     });
 };
 
+module.exports.MAX_TRACKED_URLS = MAX_TRACKED_URLS;
 module.exports.sanitizeUrlPath = sanitizeUrlPath;
 module.exports.sanitizeError = sanitizeError;
 module.exports.isRateLimited = isRateLimited;
