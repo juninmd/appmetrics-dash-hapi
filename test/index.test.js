@@ -392,6 +392,32 @@ describe('appmetrics-dash-hapi', () => {
         });
     });
 
+    describe('http-urls memory bound', () => {
+        it('keeps at most MAX_TRACKED_URLS entries and evicts the least-hit URL first', () => {
+            const clock = sinon.useFakeTimers();
+            const mocks = createMockAppmetrics();
+            moduleExports.monitor({
+                server: serverStub,
+                appmetrics: mocks.appmetrics,
+                socketIo: socketIoFunc
+            });
+            const httpHandler = mocks.monitoring.on.withArgs('http').firstCall.args[1];
+            const max = moduleExports.MAX_TRACKED_URLS;
+
+            httpHandler({ duration: 10, url: '/busy', time: Date.now() });
+            httpHandler({ duration: 10, url: '/busy', time: Date.now() });
+            for (let i = 0; i < max * 2; i++) {
+                httpHandler({ duration: 10, url: '/user/' + i, time: Date.now() });
+            }
+            clock.tick(2000);
+            clock.restore();
+
+            const data = JSON.parse(ioStub.emit.withArgs('http-urls').firstCall.args[1]);
+            expect(data).to.have.lengthOf(max);
+            expect(data.find(d => d.url === '/busy').hits).to.equal(2);
+        });
+    });
+
     describe('GC events', () => {
         let clock;
         let appmetrics;
