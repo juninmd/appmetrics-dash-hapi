@@ -554,7 +554,8 @@ function buildCorsOptions(userCors) {
             result.origin = '*';
         }
     } else {
-        result.origin = '*';
+        // No origin given: wildcard is only safe without credentials
+        result.origin = userCors.credentials ? false : '*';
     }
     if (userCors.methods && Array.isArray(userCors.methods)) {
         result.methods = userCors.methods;
