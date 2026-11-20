@@ -312,81 +312,21 @@ function monitor(options) {
     });
 
     monitoring.on('http', function (data) {
-        if (!aggregateHttpEvent) {
-            aggregateHttpEvent = {};
-            aggregateHttpEvent.total = 1;
-            aggregateHttpEvent.average = data.duration;
-            aggregateHttpEvent.longest = data.duration;
-            aggregateHttpEvent.time = data.time;
-            aggregateHttpEvent.url = data.url;
-        } else {
-            aggregateHttpEvent.total = aggregateHttpEvent.total + 1;
-            aggregateHttpEvent.average = (aggregateHttpEvent.average * (aggregateHttpEvent.total - 1) + data.duration) / aggregateHttpEvent.total;
-            if (data.duration > aggregateHttpEvent.longest) {
-                aggregateHttpEvent.longest = data.duration;
-                aggregateHttpEvent.url = data.url;
-            }
-        }
-
+        aggregateHttpEvent = aggregateRequest(aggregateHttpEvent, data);
         trackUrl(data);
-
     });
 
     monitoring.on('https', function (data) {
-        if (!aggregateHttpsEvent) {
-            aggregateHttpsEvent = {};
-            aggregateHttpsEvent.total = 1;
-            aggregateHttpsEvent.average = data.duration;
-            aggregateHttpsEvent.longest = data.duration;
-            aggregateHttpsEvent.time = data.time;
-            aggregateHttpsEvent.url = data.url;
-        } else {
-            aggregateHttpsEvent.total = aggregateHttpsEvent.total + 1;
-            aggregateHttpsEvent.average = (aggregateHttpsEvent.average * (aggregateHttpsEvent.total - 1) + data.duration) / aggregateHttpsEvent.total;
-            if (data.duration > aggregateHttpsEvent.longest) {
-                aggregateHttpsEvent.longest = data.duration;
-                aggregateHttpsEvent.url = data.url;
-            }
-        }
-
+        aggregateHttpsEvent = aggregateRequest(aggregateHttpsEvent, data);
         trackUrl(data);
-
     });
 
     monitoring.on('http-outbound', function (data) {
-        if (!aggregateHttpOutboundEvent) {
-            aggregateHttpOutboundEvent = {};
-            aggregateHttpOutboundEvent.total = 1;
-            aggregateHttpOutboundEvent.average = data.duration;
-            aggregateHttpOutboundEvent.longest = data.duration;
-            aggregateHttpOutboundEvent.time = data.time;
-            aggregateHttpOutboundEvent.url = data.url;
-        } else {
-            aggregateHttpOutboundEvent.total = aggregateHttpOutboundEvent.total + 1;
-            aggregateHttpOutboundEvent.average = (aggregateHttpOutboundEvent.average * (aggregateHttpOutboundEvent.total - 1) + data.duration) / aggregateHttpOutboundEvent.total;
-            if (data.duration > aggregateHttpOutboundEvent.longest) {
-                aggregateHttpOutboundEvent.longest = data.duration;
-                aggregateHttpOutboundEvent.url = data.url;
-            }
-        }
+        aggregateHttpOutboundEvent = aggregateRequest(aggregateHttpOutboundEvent, data);
     });
 
     monitoring.on('https-outbound', function (data) {
-        if (!aggregateHttpsOutboundEvent) {
-            aggregateHttpsOutboundEvent = {};
-            aggregateHttpsOutboundEvent.total = 1;
-            aggregateHttpsOutboundEvent.average = data.duration;
-            aggregateHttpsOutboundEvent.longest = data.duration;
-            aggregateHttpsOutboundEvent.time = data.time;
-            aggregateHttpsOutboundEvent.url = data.url;
-        } else {
-            aggregateHttpsOutboundEvent.total = aggregateHttpsOutboundEvent.total + 1;
-            aggregateHttpsOutboundEvent.average = (aggregateHttpsOutboundEvent.average * (aggregateHttpsOutboundEvent.total - 1) + data.duration) / aggregateHttpsOutboundEvent.total;
-            if (data.duration > aggregateHttpsOutboundEvent.longest) {
-                aggregateHttpsOutboundEvent.longest = data.duration;
-                aggregateHttpsOutboundEvent.url = data.url;
-            }
-        }
+        aggregateHttpsOutboundEvent = aggregateRequest(aggregateHttpsOutboundEvent, data);
     });
 
     monitoring.on('mongo', function (data) {
@@ -423,6 +363,20 @@ function monitor(options) {
 
     setInterval(emitData, emitInterval).unref();
     return server;
+}
+
+// Running count, mean and slowest request (with its URL) for one emit interval.
+function aggregateRequest(aggregate, data) {
+    if (!aggregate) {
+        return { total: 1, average: data.duration, longest: data.duration, time: data.time, url: data.url };
+    }
+    aggregate.total += 1;
+    aggregate.average = (aggregate.average * (aggregate.total - 1) + data.duration) / aggregate.total;
+    if (data.duration > aggregate.longest) {
+        aggregate.longest = data.duration;
+        aggregate.url = data.url;
+    }
+    return aggregate;
 }
 
 function trackUrl(data) {
