@@ -105,14 +105,10 @@ function addSecurityHeaders(server) {
     server.ext('onPreResponse', function (request, reply) {
         const response = request.response;
         if (response && response.isBoom) {
-            response.output.headers['X-Content-Type-Options'] = 'nosniff';
-            response.output.headers['X-Frame-Options'] = 'DENY';
-            response.output.headers['X-XSS-Protection'] = '1; mode=block';
+            Object.assign(response.output.headers, getSecurityHeaders());
         }
         if (response && response.headers) {
-            response.headers['X-Content-Type-Options'] = 'nosniff';
-            response.headers['X-Frame-Options'] = 'DENY';
-            response.headers['X-XSS-Protection'] = '1; mode=block';
+            Object.assign(response.headers, getSecurityHeaders());
         }
         return reply.continue();
     });

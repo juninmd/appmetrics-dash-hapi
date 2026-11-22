@@ -559,6 +559,10 @@ describe('appmetrics-dash-hapi', function () {
             handler({ response: plain }, reply);
             expect(plain.headers['X-Content-Type-Options']).to.equal('nosniff');
 
+            // Both branches must send the full exported set, so a new header cannot be added to only one.
+            expect(boom.output.headers).to.deep.equal(mod.getSecurityHeaders());
+            expect(plain.headers).to.deep.equal(mod.getSecurityHeaders());
+
             expect(handler({ response: null }, reply)).to.equal('continued');
         });
 
