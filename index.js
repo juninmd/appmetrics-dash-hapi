@@ -15,7 +15,7 @@ var aggregateHttpsEvent;
 var aggregateHttpsOutboundEvent;
 var aggregateProbeEvents = [];
 // Used for top 5 response times
-var httpURLData = {};
+var httpURLData = new Map();
 // Cap on distinct URLs kept in httpURLData: URLs with ids or query strings would otherwise grow it
 // (and the payload emitted every interval) without bound
 const MAX_TRACKED_URLS = 500;
@@ -380,8 +380,8 @@ function aggregateRequest(aggregate, data) {
 }
 
 function trackUrl(data) {
-    if (Object.prototype.hasOwnProperty.call(httpURLData, data.url)) {
-        var urlData = httpURLData[data.url];
+    var urlData = httpURLData.get(data.url);
+    if (urlData) {
         // Recalculate the average
         urlData.duration = (urlData.duration * urlData.hits + data.duration) / (urlData.hits + 1);
         urlData.hits = urlData.hits + 1;
@@ -390,16 +390,21 @@ function trackUrl(data) {
         }
         return;
     }
-    var urls = Object.keys(httpURLData);
-    if (urls.length >= MAX_TRACKED_URLS) {
-        // Evict the least-hit URL so busy endpoints survive a flood of one-off URLs
-        var coldest = urls[0];
-        for (var i = 1; i < urls.length; i++) {
-            if (httpURLData[urls[i]].hits < httpURLData[coldest].hits) coldest = urls[i];
+    if (httpURLData.size >= MAX_TRACKED_URLS) {
+        // Evict the least-hit URL so busy endpoints survive a flood of one-off URLs.
+        // hits is never below 1, so the first single-hit URL ends the scan early.
+        var coldest;
+        var coldestHits = Infinity;
+        for (var [url, entry] of httpURLData) {
+            if (entry.hits < coldestHits) {
+                coldest = url;
+                coldestHits = entry.hits;
+                if (coldestHits === 1) break;
+            }
         }
-        delete httpURLData[coldest];
+        httpURLData.delete(coldest);
     }
-    httpURLData[data.url] = { duration: data.duration, hits: 1, longest: data.duration };
+    httpURLData.set(data.url, { duration: data.duration, hits: 1, longest: data.duration });
 }
 
 function addProbeEvent(probename, data) {
@@ -455,18 +460,15 @@ function emitData() {
         aggregateProbeEvents = [];
     }
 
-    if (Object.keys(httpURLData).length > 0) {
+    if (httpURLData.size > 0) {
         var result = [];
-        for (var url in httpURLData) {
-            if (Object.prototype.hasOwnProperty.call(httpURLData, url)) {
-                httpURLData[url];
-                var json = {};
-                json['url'] = url;
-                json['averageResponseTime'] = httpURLData[url].duration;
-                json['hits'] = httpURLData[url].hits;
-                json['longestResponseTime'] = httpURLData[url].longest;
-                result.push(json);
-            }
+        for (var [url, urlData] of httpURLData) {
+            result.push({
+                url: url,
+                averageResponseTime: urlData.duration,
+                hits: urlData.hits,
+                longestResponseTime: urlData.longest
+            });
         }
         io.emit('http-urls', JSON.stringify(result));
     }

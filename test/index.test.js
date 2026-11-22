@@ -416,6 +416,33 @@ describe('appmetrics-dash-hapi', () => {
             expect(data).to.have.lengthOf(max);
             expect(data.find(d => d.url === '/busy').hits).to.equal(2);
         });
+
+        it('evicts the URL with the fewest hits when no URL has a single hit', () => {
+            const clock = sinon.useFakeTimers();
+            const mocks = createMockAppmetrics();
+            moduleExports.monitor({
+                server: serverStub,
+                appmetrics: mocks.appmetrics,
+                socketIo: socketIoFunc
+            });
+            const httpHandler = mocks.monitoring.on.withArgs('http').firstCall.args[1];
+            const max = moduleExports.MAX_TRACKED_URLS;
+
+            for (let i = 0; i < max; i++) {
+                const hits = i === 7 ? 2 : 3;
+                for (let h = 0; h < hits; h++) {
+                    httpHandler({ duration: 10, url: '/u/' + i, time: Date.now() });
+                }
+            }
+            httpHandler({ duration: 10, url: '/new', time: Date.now() });
+            clock.tick(2000);
+            clock.restore();
+
+            const urls = JSON.parse(ioStub.emit.withArgs('http-urls').firstCall.args[1]).map(d => d.url);
+            expect(urls).to.have.lengthOf(max);
+            expect(urls).to.include('/new');
+            expect(urls).to.not.include('/u/7');
+        });
     });
 
     describe('GC events', () => {
